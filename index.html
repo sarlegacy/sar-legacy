@@ -11,27 +11,39 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       :root {
-        --bg-color: #0D0B1F;
-        --text-color: #ffffff;
-        --sidebar-bg: rgba(24, 22, 41, 0.5);
-        --main-bg: rgba(0, 0, 0, 0.3);
-        --border-color: rgba(255, 255, 255, 0.1);
+        --bg-primary: #0D0B1F;
+        --bg-secondary: rgba(24, 22, 41, 0.7);
+        --bg-tertiary: rgba(0, 0, 0, 0.3);
+        --bg-interactive: rgba(255, 255, 255, 0.05);
+        --bg-interactive-hover: rgba(255, 255, 255, 0.1);
+        --text-primary: #E5E7EB;
+        --text-muted: #9CA3AF;
+        --border-primary: rgba(255, 255, 255, 0.1);
         --thumb-bg: #A855F7;
+        --focus-ring: #A855F7;
+        --gradient-from: #A855F7;
+        --gradient-to: #3B82F6;
       }
 
       html.light {
-        --bg-color: #F3F4F6;
-        --text-color: #111827;
-        --sidebar-bg: rgba(255, 255, 255, 0.5);
-        --main-bg: rgba(255, 255, 255, 0.3);
-        --border-color: rgba(0, 0, 0, 0.1);
+        --bg-primary: #F9FAFB;
+        --bg-secondary: rgba(255, 255, 255, 0.8);
+        --bg-tertiary: rgba(243, 244, 246, 0.7);
+        --bg-interactive: #E5E7EB;
+        --bg-interactive-hover: #D1D5DB;
+        --text-primary: #1F2937;
+        --text-muted: #4B5563;
+        --border-primary: #D1D5DB;
         --thumb-bg: #8B5CF6;
+        --focus-ring: #8B5CF6;
+        --gradient-from: #8B5CF6;
+        --gradient-to: #2563EB;
       }
       
       body {
         font-family: 'Inter', sans-serif;
-        background-color: var(--bg-color);
-        color: var(--text-color);
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
         transition: background-color 0.3s, color 0.3s;
       }
 
@@ -40,6 +52,17 @@
                           radial-gradient(at 20% 95%, hsla(214, 75%, 45%, 0.4) 0px, transparent 50%);
       }
       
+      /* Accessibility: Add a visible focus ring for keyboard users */
+      *:focus-visible {
+        outline: 2px solid var(--focus-ring);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+      /* Remove outline for mouse users */
+      *:focus:not(:focus-visible) {
+        outline: none;
+      }
+
       .custom-scrollbar::-webkit-scrollbar {
         width: 4px;
       }
@@ -47,11 +70,11 @@
         background: transparent;
       }
       .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--border-primary);
         border-radius: 4px;
       }
       .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: var(--text-muted);
       }
 
       /* Custom slider styles */
@@ -63,7 +86,7 @@
         background: var(--thumb-bg);
         cursor: pointer;
         border-radius: 50%;
-        border: 2px solid var(--bg-color);
+        border: 2px solid var(--bg-primary);
       }
 
       .range-thumb::-moz-range-thumb {
@@ -72,7 +95,7 @@
         background: var(--thumb-bg);
         cursor: pointer;
         border-radius: 50%;
-        border: 2px solid var(--bg-color);
+        border: 2px solid var(--bg-primary);
       }
 
       @keyframes slide-in-left {
@@ -82,6 +105,13 @@
       @keyframes fade-in {
         from { opacity: 0; }
         to { opacity: 1; }
+      }
+      @keyframes animate-fade-in-down {
+        from { opacity: 0; transform: translateY(-1rem); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-down {
+        animation: animate-fade-in-down 0.3s ease-out;
       }
 
     </style>
@@ -97,7 +127,7 @@
 }
 </script>
 </head>
-  <body>
+  <body class="dark">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

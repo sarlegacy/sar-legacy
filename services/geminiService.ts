@@ -75,13 +75,15 @@ export async function generateChartData(prompt: string): Promise<ChartData> {
 }
 
 
-export function createChatSession(config?: Partial<GenerateContentConfig>): Chat {
+export function createChatSession(config?: Partial<GenerateContentConfig>, systemInstruction?: string): Chat {
   const model = 'gemini-2.5-flash';
+  const instruction = systemInstruction || 'You are SAR LEGACY, a helpful and friendly AI assistant. Provide clear, concise, and helpful responses. Your personality is professional yet approachable. Do not respond with JSON for chart data unless specifically asked via a function call.';
+  
   return ai.chats.create({
     model,
     config: {
-      systemInstruction: 'You are SAR LEGACY, a helpful and friendly AI assistant. Provide clear, concise, and helpful responses. Your personality is professional yet approachable. Do not respond with JSON for chart data unless specifically asked via a function call.',
       ...config,
+      systemInstruction: instruction,
     },
   });
 }

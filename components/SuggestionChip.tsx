@@ -10,7 +10,7 @@ export const SuggestionChip: React.FC<SuggestionChipProps> = ({ text, icon, onCl
   return (
     <button
       onClick={() => onClick(text)}
-      className="bg-white/5 border border-transparent rounded-lg px-3 py-2 text-sm text-left text-gray-300 hover:bg-white/10 hover:border-white/10 transition-all duration-200 flex items-center gap-2"
+      className="bg-[var(--bg-interactive)] border border-transparent rounded-lg px-3 py-2 text-sm text-left text-[var(--text-muted)] hover:bg-[var(--bg-interactive-hover)] hover:border-[var(--border-primary)] hover:text-[var(--text-primary)] transition-all duration-200 flex items-center gap-2"
     >
       {icon}
       <span className="font-medium">{text}</span>

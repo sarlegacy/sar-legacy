@@ -7,6 +7,7 @@ interface NotificationPanelProps {
   notifications: Notification[];
   onClose: () => void;
   onClearAll: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement>;
 }
 
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({
@@ -14,6 +15,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   notifications,
   onClose,
   onClearAll,
+  triggerRef,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -23,15 +25,60 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
         onClose();
       }
     };
+    
+    const handleEscapeKey = (event: KeyboardEvent) => {
+        if (event.key === 'Escape') {
+            onClose();
+        }
+    };
 
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
-    }
+      document.addEventListener('keydown', handleEscapeKey);
 
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isOpen, onClose]);
+      setTimeout(() => {
+        const focusableElements = panelRef.current?.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled])'
+        );
+        if (focusableElements && focusableElements.length > 0) {
+            focusableElements[0].focus();
+        }
+      }, 100); // Small delay to allow for panel animation
+
+      const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Tab' && panelRef.current) {
+                const focusableElements = Array.from(panelRef.current.querySelectorAll<HTMLElement>(
+                    'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled])'
+                ));
+                if (focusableElements.length === 0) return;
+
+                const firstElement = focusableElements[0];
+                const lastElement = focusableElements[focusableElements.length - 1];
+                
+                if (event.shiftKey) {
+                    if (document.activeElement === firstElement) {
+                        lastElement.focus();
+                        event.preventDefault();
+                    }
+                } else {
+                    if (document.activeElement === lastElement) {
+                        firstElement.focus();
+                        event.preventDefault();
+                    }
+                }
+            }
+      };
+      
+      document.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleEscapeKey);
+        document.removeEventListener('keydown', handleKeyDown);
+        triggerRef.current?.focus();
+      };
+    }
+  }, [isOpen, onClose, triggerRef]);
 
   if (!isOpen) {
     return null;
@@ -40,37 +87,39 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   return (
     <div
       ref={panelRef}
-      className="absolute top-12 right-0 w-80 max-w-sm bg-[#181629]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in-down"
-      style={{ animationDuration: '300ms' }}
+      className="absolute top-12 right-0 w-80 max-w-sm bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--border-primary)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in-down"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notification-title"
     >
-      <div className="p-4 border-b border-white/10">
-        <h3 className="font-semibold text-white">Notifications</h3>
+      <div className="p-4 border-b border-[var(--border-primary)]">
+        <h3 id="notification-title" className="font-semibold text-[var(--text-primary)]">Notifications</h3>
       </div>
       <div className="max-h-80 overflow-y-auto custom-scrollbar">
         {notifications.length > 0 ? (
           <ul>
             {notifications.map((notification) => (
-              <li key={notification.id} className="border-b border-white/5 p-4 hover:bg-white/5 transition-colors">
+              <li key={notification.id} className="border-b border-[var(--border-primary)] p-4 hover:bg-[var(--bg-interactive-hover)] transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="flex-shrink-0 mt-1">{notification.icon}</div>
                   <div>
-                    <p className="font-medium text-white text-sm">{notification.title}</p>
-                    <p className="text-gray-400 text-xs mt-1">{notification.description}</p>
+                    <p className="font-medium text-[var(--text-primary)] text-sm">{notification.title}</p>
+                    <p className="text-[var(--text-muted)] text-xs mt-1">{notification.description}</p>
                   </div>
-                  <p className="text-gray-500 text-xs ml-auto flex-shrink-0">{notification.timestamp}</p>
+                  <p className="text-[var(--text-muted)] text-xs ml-auto flex-shrink-0">{notification.timestamp}</p>
                 </div>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-gray-400 text-center py-8 text-sm">No new notifications.</p>
+          <p className="text-[var(--text-muted)] text-center py-8 text-sm">No new notifications.</p>
         )}
       </div>
        {notifications.length > 0 && (
           <div className="p-2">
             <button
               onClick={onClearAll}
-              className="w-full text-center text-sm text-gray-300 py-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="w-full text-center text-sm text-[var(--text-primary)] py-2 rounded-lg hover:bg-[var(--bg-interactive-hover)] transition-colors"
             >
               Clear All
             </button>

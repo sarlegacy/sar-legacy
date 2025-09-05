@@ -24,17 +24,18 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
         return (
           <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-            <XAxis dataKey={nameKey} stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+            <XAxis dataKey={nameKey} stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'rgba(30, 28, 49, 0.9)',
-                borderColor: 'rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'var(--bg-secondary)',
+                borderColor: 'var(--border-primary)',
                 borderRadius: '0.5rem',
+                color: 'var(--text-primary)'
               }}
               cursor={{ fill: 'rgba(168, 85, 247, 0.1)' }}
             />
-            <Legend wrapperStyle={{fontSize: "12px"}} />
+            <Legend wrapperStyle={{fontSize: "12px", color: 'var(--text-muted)'}} />
             <Bar dataKey={dataKey} fill="#A855F7" radius={[4, 4, 0, 0]} />
           </BarChart>
         );
@@ -42,17 +43,18 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
         return (
           <LineChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.1)" />
-            <XAxis dataKey={nameKey} stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
-            <YAxis stroke="#9ca3af" fontSize={12} tickLine={false} axisLine={false} />
+            <XAxis dataKey={nameKey} stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+            <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'rgba(30, 28, 49, 0.9)',
-                borderColor: 'rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'var(--bg-secondary)',
+                borderColor: 'var(--border-primary)',
                 borderRadius: '0.5rem',
+                color: 'var(--text-primary)'
               }}
                cursor={{ stroke: '#A855F7', strokeWidth: 1, strokeDasharray: '3 3' }}
             />
-            <Legend wrapperStyle={{fontSize: "12px"}}/>
+            <Legend wrapperStyle={{fontSize: "12px", color: 'var(--text-muted)'}}/>
             <Line type="monotone" dataKey={dataKey} stroke="#A855F7" strokeWidth={2} activeDot={{ r: 8 }} />
           </LineChart>
         );
@@ -73,7 +75,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
                 const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
                 const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
                 return (
-                  <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12}>
+                  <text x={x} y={y} fill="var(--text-primary)" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" fontSize={12}>
                     {`${(percent * 100).toFixed(0)}%`}
                   </text>
                 );
@@ -85,12 +87,13 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: 'rgba(30, 28, 49, 0.9)',
-                borderColor: 'rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'var(--bg-secondary)',
+                borderColor: 'var(--border-primary)',
                 borderRadius: '0.5rem',
+                color: 'var(--text-primary)'
               }}
             />
-            <Legend wrapperStyle={{fontSize: "12px"}}/>
+            <Legend wrapperStyle={{fontSize: "12px", color: 'var(--text-muted)'}}/>
           </PieChart>
         );
       default:
@@ -99,8 +102,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({ chartData }) => {
   };
 
   return (
-    <div className="my-2">
-       {title && <h3 className="text-md font-semibold text-white mb-3 text-center">{title}</h3>}
+    <div 
+      className="my-2" 
+      role="img" 
+      aria-label={title ? `${chartType} chart titled ${title}` : `A ${chartType} chart`}
+    >
+       {title && <h3 className="text-md font-semibold text-[var(--text-primary)] mb-3 text-center">{title}</h3>}
       <div style={{ width: '100%', height: 300 }}>
         <ResponsiveContainer>
           {renderChart()}
