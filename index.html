@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SAR LEGACY AI Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg-color: #0D0B1F;
+        --text-color: #ffffff;
+        --sidebar-bg: rgba(24, 22, 41, 0.5);
+        --main-bg: rgba(0, 0, 0, 0.3);
+        --border-color: rgba(255, 255, 255, 0.1);
+        --thumb-bg: #A855F7;
+      }
+
+      html.light {
+        --bg-color: #F3F4F6;
+        --text-color: #111827;
+        --sidebar-bg: rgba(255, 255, 255, 0.5);
+        --main-bg: rgba(255, 255, 255, 0.3);
+        --border-color: rgba(0, 0, 0, 0.1);
+        --thumb-bg: #8B5CF6;
+      }
+      
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        transition: background-color 0.3s, color 0.3s;
+      }
+
+      .dark body {
+        background-image: radial-gradient(at 80% 20%, hsla(283, 67%, 33%, 0.4) 0px, transparent 50%),
+                          radial-gradient(at 20% 95%, hsla(214, 75%, 45%, 0.4) 0px, transparent 50%);
+      }
+      
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      /* Custom slider styles */
+      .range-thumb::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: var(--thumb-bg);
+        cursor: pointer;
+        border-radius: 50%;
+        border: 2px solid var(--bg-color);
+      }
+
+      .range-thumb::-moz-range-thumb {
+        width: 16px;
+        height: 16px;
+        background: var(--thumb-bg);
+        cursor: pointer;
+        border-radius: 50%;
+        border: 2px solid var(--bg-color);
+      }
+
+      @keyframes slide-in-left {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(0); }
+      }
+      @keyframes fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.17.0",
+    "recharts": "https://aistudiocdn.com/recharts@^2.12.7"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

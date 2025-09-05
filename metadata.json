@@ -1,0 +1,7 @@
+{
+  "name": "SAR LEGACY AI Assistant",
+  "description": "A personal AI assistant with a sleek, modern interface, inspired by advanced UI designs. Engage in natural conversations and get instant help with a variety of tasks.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
