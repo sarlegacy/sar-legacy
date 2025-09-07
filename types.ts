@@ -1,4 +1,3 @@
-
 export enum MessageRole {
   USER = 'user',
   MODEL = 'model',
@@ -12,6 +11,13 @@ export interface ChartData {
   nameKey: string;
 }
 
+export interface GroundingChunk {
+  web?: {
+    uri?: string;
+    title?: string;
+  };
+}
+
 export interface ChatMessage {
   id: string;
   role: MessageRole;
@@ -20,6 +26,14 @@ export interface ChatMessage {
   attachment?: {
     url: string; // Data URL for display
     type: string; // MIME type
+    name: string;
+    size: number;
+  };
+  groundingChunks?: GroundingChunk[];
+  usageMetadata?: {
+    promptTokenCount?: number;
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
   };
 }
 
@@ -37,6 +51,18 @@ export interface ModelConfig {
     temperature: number;
     topP: number;
     topK: number;
+    maxOutputTokens?: number;
+    thinkingBudget?: number;
+}
+
+export interface SoundSettings {
+    enableSound: boolean;
+    masterVolume: number; // 0 to 1
+    uiSounds: boolean;
+    messageSent: boolean;
+    messageReceived: boolean;
+    notifications: boolean;
+    voiceRecognition: boolean;
 }
 
 export interface AppSettings {
@@ -44,6 +70,14 @@ export interface AppSettings {
     modelConfig: ModelConfig;
     microphoneLanguage: string;
     enableTTS: boolean;
+    fontSize: number; // as a percentage
+    compactUI: boolean;
+    animationsDisabled: boolean;
+    sendOnEnter: boolean;
+    autoScroll: boolean;
+    exportFormat: 'markdown' | 'json' | 'text';
+    systemInstruction?: string;
+    soundSettings: SoundSettings;
 }
 
 export interface User {
@@ -55,6 +89,19 @@ export interface User {
   lastLogin: string;
 }
 
+export type AIProvider = 'SAR LEGACY' | 'OpenAI' | 'Anthropic';
+
+export interface ApiKey {
+  id: string;
+  provider: AIProvider;
+  key: string;
+  name: string;
+  status: 'active' | 'inactive';
+  requestCount: number;
+  tokenUsage: number;
+  lastUsed: string | null;
+}
+
 export interface CustomModel {
   id: string;
   name: string;
@@ -62,9 +109,20 @@ export interface CustomModel {
   category: string;
   icon: React.ReactNode;
   systemInstruction: string;
+  provider: AIProvider;
+  modelId: string; // e.g., 'gemini-2.5-flash', 'gpt-4o'
+  isEditable?: boolean; // To distinguish default models from user-created ones
 }
 
-export type GalleryItemType = 'folder' | 'image' | 'video' | 'file';
+export interface Connector {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  category: 'Cloud Storage' | 'Productivity' | 'Communication';
+}
+
+export type GalleryItemType = 'folder' | 'image' | 'video' | 'file' | 'sar_project';
 
 export interface GalleryItem {
   id: string;
@@ -77,4 +135,48 @@ export interface GalleryItem {
   thumbnail?: string; // For videos
   fileType?: string; // e.g., 'PDF', 'DOCX'
   size?: string; // e.g., '1.2 MB'
+  children?: GalleryItem[];
+  file?: File; // To hold the raw file for RAG in the current session
+  projectPlan?: ProjectPlan;
+  generatedFiles?: GeneratedFile[];
+}
+
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  user: string; // User name
+  action: string;
+  details?: Record<string, any>;
+}
+
+export interface ProjectPlan {
+  projectName: string;
+  technologyStack: string[];
+  featureBreakdown: string[];
+  fileList: string[];
+}
+
+export interface GeneratedFile {
+  filePath: string;
+  fileContent: string;
+}
+
+export interface AppData {
+    users: User[];
+    customModels: CustomModel[];
+    apiKeys: ApiKey[];
+    settings: AppSettings;
+    galleryRoot: GalleryItem;
+    connectedConnectorIds: string[];
+    logs: LogEntry[];
+}
+
+export type AspectRatio = "1:1" | "16:9" | "9:16" | "4:3" | "3:4";
+
+export type VideoEngine = 'google-veo' | 'sar-python';
+
+export interface GeneratedImageData {
+    base64: string;
+    prompt: string;
+    aspectRatio: AspectRatio;
 }

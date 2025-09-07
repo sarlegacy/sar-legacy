@@ -1,7 +1,8 @@
 
+
 import React, { useState, useMemo } from 'react';
-import { User } from '../../types';
-import { TrashIcon, EditIcon, UserPlusIcon, ChevronDownIcon, ChevronUpIcon } from '../icons';
+import { User } from '../../types.ts';
+import { TrashIcon, EditIcon, UserPlusIcon, ChevronDownIcon, ChevronUpIcon } from './icons.tsx';
 
 interface UserManagementTableProps {
   users: User[];

@@ -6,7 +6,7 @@ interface SuggestionChipProps {
   onClick: (text: string) => void;
 }
 
-export const SuggestionChip: React.FC<SuggestionChipProps> = ({ text, icon, onClick }) => {
+export const SuggestionChip = React.memo<SuggestionChipProps>(({ text, icon, onClick }) => {
   return (
     <button
       onClick={() => onClick(text)}
@@ -16,4 +16,4 @@ export const SuggestionChip: React.FC<SuggestionChipProps> = ({ text, icon, onCl
       <span className="font-medium">{text}</span>
     </button>
   );
-};
+});

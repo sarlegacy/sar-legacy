@@ -1,25 +1,42 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import { Chat } from "@google/genai";
+import React, { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react';
+// Fix: Import Chat from the correct package @google/genai
+import { Chat, GenerateContentResponse } from "@google/genai";
 import { 
-  SarLegacyLogo, GalleryIcon, CalendarIcon, GridIcon, SettingsIcon,
+  SarLegacyLogo, GalleryIcon, GridIcon, SettingsIcon,
   BellIcon, SparkleIcon, MicrophoneIcon, MovieIcon, GenerateIcon, WriteIcon,
-  DataAnalysisIcon, MoreIcon, ChevronRightIcon, ChevronDownIcon, CloseIcon,
+  DataAnalysisIcon, MoreIcon, ChevronRightIcon, CloseIcon,
   SendIcon, SarLogoIcon, AlertTriangleIcon, ChartBarIcon, PaperclipIcon,
-  ShieldIcon, LogoutIcon
-} from './components/icons';
-import { SuggestionChip } from './components/SuggestionChip';
-import { createChatSession, generateChartData } from './services/geminiService';
-import { ChatMessage, MessageRole, Notification, AppSettings, User, CustomModel } from './types';
-import { ChatBubble } from './components/ChatBubble';
-import { NotificationPanel } from './components/NotificationPanel';
-import { SettingsPanel } from './components/SettingsPanel';
-import { LoginScreen } from './components/LoginScreen';
-import { AdminPanel } from './components/admin/AdminPanel';
-import { mockUsers } from './data/mockUsers';
-import { ModelMarketplace } from './components/ModelMarketplace';
-import { defaultModel } from './data/mockModels';
-import { Gallery } from './components/Gallery';
+  UsersIcon, LogoutIcon, FileTextIcon, CopyIcon, SpeakerOnIcon, DownloadIcon,
+  SearchIcon, ChevronUpIcon, ChevronDownIcon, PlugIcon, CpuChipIcon
+} from './components/admin/icons.tsx';
+import { SuggestionChip } from './components/admin/SuggestionChip.tsx';
+import { createChatSession, generateContentWithGoogleSearch } from './services/aiService.ts';
+import * as fileService from './services/fileService.ts';
+import * as galleryService from './services/galleryService.ts';
+import * as driveService from './services/googleDriveService.ts';
+import { generateChartData } from './services/aiService.ts';
+import { ChatMessage, MessageRole, Notification, AppSettings, User, CustomModel, ApiKey, GalleryItem, Connector, AppData, LogEntry, GeneratedImageData, ProjectPlan, GeneratedFile, SoundSettings } from './types.ts';
+import { ChatBubble } from './components/admin/ChatBubble.tsx';
+import { NotificationPanel } from './components/admin/NotificationPanel.tsx';
+import { LoginScreen } from './components/admin/LoginScreen.tsx';
+import { mockUsers } from './data/mockUsers.ts';
+import { defaultModel, mockModels as defaultModels } from './data/mockModels.ts';
+import { rootFolder } from './data/mockGallery.ts';
+import { mockConnectors } from './data/mockConnectors.ts';
+
+// Statically imported components to resolve module loading errors.
+import { SettingsPanel } from './components/admin/SettingsPanel.tsx';
+import { AdminPanel } from './components/admin/AdminPanel.tsx';
+import { ModelMarketplace } from './components/admin/ModelMarketplace.tsx';
+import { Gallery } from './components/admin/Gallery.tsx';
+import { CustomModelModal } from './components/admin/CustomModelModal.tsx';
+import { ContextMenu } from './components/admin/ContextMenu.tsx';
+import { ConnectorsPanel } from './components/admin/ConnectorsPanel.tsx';
+import { StatusIndicator } from './components/admin/StatusIndicator.tsx';
+import { SarStudio } from './components/admin/SarStudio.tsx';
+import { SarProjectCanvas } from './components/admin/SarProjectCanvas.tsx';
+import { ImageEditor } from './components/admin/ImageEditor.tsx';
+
 
 // Add type definitions for the Web Speech API to fix TypeScript errors.
 interface SpeechRecognition {
@@ -40,19 +57,35 @@ declare global {
   }
 }
 
-// FIX: The Sidebar component was using 'settingsButtonRef' which was not in its scope. It is now passed in as a prop to fix the error.
+// A simple debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 const Sidebar: React.FC<{ 
   onSettingsClick: () => void; 
   onAdminClick: () => void;
   onMarketplaceClick: () => void;
   onGalleryClick: () => void;
+  onSarStudioClick: () => void;
+  onConnectorsClick: () => void;
   settingsButtonRef: React.RefObject<HTMLButtonElement>;
   isAdmin: boolean;
-}> = ({ onSettingsClick, onAdminClick, onMarketplaceClick, onGalleryClick, settingsButtonRef, isAdmin }) => {
+}> = memo(({ onSettingsClick, onAdminClick, onMarketplaceClick, onGalleryClick, onSarStudioClick, onConnectorsClick, settingsButtonRef, isAdmin }) => {
   const navItems = [
     { icon: <GalleryIcon />, label: 'Gallery', action: onGalleryClick },
-    { icon: <CalendarIcon />, label: 'Calendar', action: () => alert('Calendar coming soon!') },
+    { icon: <GenerateIcon />, label: 'SAR Studio', action: onSarStudioClick },
     { icon: <GridIcon />, label: 'Apps', action: onMarketplaceClick },
+    { icon: <PlugIcon />, label: 'Connectors', action: onConnectorsClick },
   ];
   return (
     <aside className="bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] flex flex-col items-center justify-between p-4 py-8">
@@ -70,9 +103,11 @@ const Sidebar: React.FC<{
       </div>
       <div className="flex flex-col items-center gap-6">
         {isAdmin && (
+          <>
             <button onClick={onAdminClick} aria-label="Admin Panel" className="p-2 rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-interactive-hover)] hover:text-[var(--text-primary)] transition-colors">
-                <ShieldIcon />
+                <UsersIcon />
             </button>
+          </>
         )}
         <button ref={settingsButtonRef} onClick={onSettingsClick} aria-label="Settings" className="p-2 rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-interactive-hover)] hover:text-[var(--text-primary)] transition-colors">
             <SettingsIcon />
@@ -80,124 +115,91 @@ const Sidebar: React.FC<{
       </div>
     </aside>
   );
-};
+});
 
-const WelcomeScreen: React.FC = () => {
-  const [activeFilter, setActiveFilter] = useState('All');
-  const filters = ['All', 'Favorites', 'Performance', 'Research and analysis', 'Education'];
-
+const WelcomeScreen: React.FC = memo(() => {
   return (
     <>
-      <div className="absolute top-8 right-8 bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--border-primary)] rounded-2xl p-4 flex items-start gap-3 max-w-xs shadow-2xl">
-        <div className="text-yellow-400 mt-1">
-          <SparkleIcon />
-        </div>
-        <div>
-          <p className="font-semibold text-[var(--text-primary)]">You have a busy day today with lots of meetings.</p>
-        </div>
-        <button aria-label="Close welcome message" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <CloseIcon className="w-5 h-5" />
-        </button>
-      </div>
-
       <section className="mt-16 flex-shrink-0">
         <p className="text-[var(--text-muted)]">Good morning!</p>
         <h1 className="text-5xl lg:text-6xl font-extrabold tracking-tighter text-[var(--text-primary)] !leading-[1.1] mt-1">You're on a wave of<br/>productivity!</h1>
       </section>
-
-      <section className="mt-12 flex-1 flex flex-col min-h-0">
-        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Discover</h2>
-        <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-          {filters.map(filter => (
-            <FilterChip key={filter} text={filter} active={activeFilter === filter} onClick={() => setActiveFilter(filter)} />
-          ))}
-        </div>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto flex-1 custom-scrollbar -mr-4 pr-4">
-          <DataCard title="Heart rate" subtitle="online" value="67" unit="BPM" chart={<svg viewBox="0 0 100 30" className="w-full h-8 mt-2"><path d="M0 20 C 10 5, 20 5, 30 20 S 50 35, 60 20 S 80 5, 90 20" fill="none" stroke="#A855F7" strokeWidth="2"/></svg>} />
-          <DataCard title="Training program" subtitle="Tomorrow" value="24" unit="days" chart={<div className="w-full h-8 mt-2 bg-black/10 dark:bg-white/5 rounded-md"><div className="h-full bg-purple-500 rounded-md" style={{width: '75%'}}></div></div>} />
-          <DataCard title="Sleep score" subtitle="Cycle" value="7.4" unit="Hours" className="bg-gradient-to-br from-purple-600 to-indigo-700 !border-purple-500" chart={<svg viewBox="0 0 100 30" className="w-full h-8 mt-2 opacity-75">{[...Array(15)].map((_, i) => <rect key={i} x={i * 6.5} y={30 - (10 + Math.sin(i*0.8)*8 + 5)} width="4" height={30} fill="white" />)}</svg>} />
-          <DataCard title="Steps" subtitle="Today" value="8,452" unit="steps" chart={<div className="w-full h-8 mt-2 bg-black/10 dark:bg-white/5 rounded-full"><div className="h-full bg-blue-500 rounded-full" style={{width: '60%'}}></div></div>} />
-          <DataCard title="Calories" subtitle="Burned" value="1,203" unit="kcal" chart={<svg viewBox="0 0 100 30" className="w-full h-8 mt-2"><path d="M0 25 C 20 25, 15 5, 40 15 S 70 28, 100 10" fill="none" stroke="#22D3EE" strokeWidth="2"/></svg>} />
-        </div>
-      </section>
     </>
   );
-};
+});
 
-const FilterChip: React.FC<{ text: string; active?: boolean; onClick: () => void; }> = ({ text, active, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-      active
-        ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
-        : 'bg-[var(--bg-interactive)] text-[var(--text-muted)] hover:bg-[var(--bg-interactive-hover)] hover:text-[var(--text-primary)]'
-    }`}
-  >
-    {text}
-  </button>
-);
-
-const DataCard: React.FC<{ title: string; subtitle: string; value: string; unit: string; chart: React.ReactNode; className?: string; }> = ({ title, subtitle, value, unit, chart, className = '' }) => (
-  <button aria-label={`View details for ${title}`} className={`bg-[var(--bg-interactive)] border border-transparent hover:border-[var(--border-primary)] rounded-2xl p-4 flex flex-col justify-between h-48 text-left transition-colors ${className}`}>
-    <div>
-      <div className="flex justify-between items-center text-[var(--text-muted)]">
-        <span>{title}</span>
-        <ChevronRightIcon />
-      </div>
-      <p className="text-sm text-[var(--text-muted)]">{subtitle}</p>
+const LoadingIndicator: React.FC<{ text?: string }> = ({ text = "Syncing with Google Drive..." }) => (
+    <div className="flex-1 flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-4 text-purple-400">
+            <SarLogoIcon className="w-12 h-12 animate-pulse" />
+            <p className="text-sm font-medium">{text}</p>
+        </div>
     </div>
-    <div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-4xl font-bold text-[var(--text-primary)]">{value}</span>
-        <span className="text-[var(--text-muted)]">{unit}</span>
-      </div>
-      {chart}
-    </div>
-  </button>
 );
 
 const initialNotifications: Notification[] = [
-    {
-        id: 1,
-        icon: <CalendarIcon className="w-5 h-5 text-blue-400" />,
-        title: "Project Sync-Up",
-        description: "Your meeting with the design team starts in 15 minutes.",
-        timestamp: "10m ago"
-    },
-    {
-        id: 2,
-        icon: <AlertTriangleIcon className="w-5 h-5 text-yellow-400" />,
-        title: "System Maintenance",
-        description: "Scheduled maintenance will occur tonight at 11 PM PST.",
-        timestamp: "1h ago"
-    },
-    {
-        id: 3,
-        icon: <GenerateIcon className="w-5 h-5 text-purple-400" />,
-        title: "Image Generation Complete",
-        description: "Your requested image 'Cyberpunk City' is ready.",
-        timestamp: "3h ago"
-    }
+    { id: 1, icon: <BellIcon className="w-5 h-5 text-blue-400" />, title: "Project Sync-Up", description: "Your meeting with the design team starts in 15 minutes.", timestamp: "10m ago" },
+    { id: 2, icon: <AlertTriangleIcon className="w-5 h-5 text-yellow-400" />, title: "System Maintenance", description: "Scheduled maintenance will occur tonight at 11 PM PST.", timestamp: "1h ago" },
+    { id: 3, icon: <GenerateIcon className="w-5 h-5 text-purple-400" />, title: "Image Generation Complete", description: "Your requested image 'Cyberpunk City' is ready.", timestamp: "3h ago" }
 ];
+
+const defaultSoundSettings: SoundSettings = {
+    enableSound: true,
+    masterVolume: 0.5,
+    uiSounds: true,
+    messageSent: true,
+    messageReceived: true,
+    notifications: true,
+    voiceRecognition: true,
+};
 
 const defaultSettings: AppSettings = {
     theme: 'dark',
-    modelConfig: {
-        temperature: 0.7,
-        topP: 0.95,
-        topK: 40,
-    },
+    modelConfig: { temperature: 0.7, topP: 0.95, topK: 40 },
     microphoneLanguage: 'en-US',
     enableTTS: true,
+    fontSize: 100,
+    compactUI: false,
+    animationsDisabled: false,
+    sendOnEnter: true,
+    autoScroll: true,
+    exportFormat: 'markdown',
+    soundSettings: defaultSoundSettings,
+    systemInstruction: '',
+};
+
+const formatFileSize = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [customModels, setCustomModels] = useState<CustomModel[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [galleryRoot, setGalleryRoot] = useState<GalleryItem>(rootFolder);
+  const [connectedConnectorIds, setConnectedConnectorIds] = useState<string[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  const [isDriveSyncing, setIsDriveSyncing] = useState(true);
+  const [isDriveConnected, setIsDriveConnected] = useState(false);
+  const [isDriveConnecting, setIsDriveConnecting] = useState(false);
   
   const [activeModel, setActiveModel] = useState<CustomModel>(defaultModel);
   const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isConnectorsPanelOpen, setIsConnectorsPanelOpen] = useState(false);
+  const [isSarStudioOpen, setIsSarStudioOpen] = useState(false);
+  const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+  const [editingModel, setEditingModel] = useState<CustomModel | null>(null);
+  const [projectToPreview, setProjectToPreview] = useState<GalleryItem | null>(null);
+  const [editingImage, setEditingImage] = useState<GalleryItem | null>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -209,16 +211,21 @@ const App: React.FC = () => {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [currentlySpeakingMessageId, setCurrentlySpeakingMessageId] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<{ file: File; url: string } | null>(null);
+  const [activeDocument, setActiveDocument] = useState<GalleryItem | null>(null);
+  const [sessionTokenCount, setSessionTokenCount] = useState({ prompt: 0, response: 0 });
+  const [contextMenu, setContextMenu] = useState<{
+    isOpen: boolean;
+    position: { x: number; y: number };
+    message: ChatMessage | null;
+  }>({ isOpen: false, position: { x: 0, y: 0 }, message: null });
+
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [currentResultIndex, setCurrentResultIndex] = useState<number | null>(null);
   
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    try {
-        const storedSettings = localStorage.getItem('appSettings');
-        return storedSettings ? JSON.parse(storedSettings) : defaultSettings;
-    } catch (error) {
-        console.error("Failed to parse settings from localStorage", error);
-        return defaultSettings;
-    }
-  });
+  const [modelStatus, setModelStatus] = useState<'online' | 'degraded' | 'offline' | 'checking'>('checking');
+  const [modelStatusMessage, setModelStatusMessage] = useState<string>('');
 
   const chat = useRef<Chat | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -226,37 +233,240 @@ const App: React.FC = () => {
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const restoreFileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isInitialLoad = useRef(true);
+  const MAX_LOG_ENTRIES = 200;
+
+  const addLogEntry = useCallback((action: string, details?: Record<string, any>) => {
+    setLogs(prevLogs => {
+      const newLog: LogEntry = {
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        user: currentUser?.name || 'System',
+        action,
+        details,
+      };
+      const updatedLogs = [newLog, ...prevLogs];
+      if (updatedLogs.length > MAX_LOG_ENTRIES) {
+        return updatedLogs.slice(0, MAX_LOG_ENTRIES);
+      }
+      return updatedLogs;
+    });
+  }, [currentUser?.name]);
+
+  const playSound = useCallback((type: 'messageReceived' | 'notification' | 'send' | 'ui' | 'micOn' | 'micOff') => {
+    const { soundSettings } = settings;
+    if (!soundSettings.enableSound) return;
+
+    const soundToggles = {
+        messageReceived: soundSettings.messageReceived,
+        notification: soundSettings.notifications,
+        send: soundSettings.messageSent,
+        ui: soundSettings.uiSounds,
+        micOn: soundSettings.voiceRecognition,
+        micOff: soundSettings.voiceRecognition,
+    };
+
+    if (!soundToggles[type]) return;
+
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      if (!audioContext) return;
+
+      if (audioContext.state === 'suspended') {
+        audioContext.resume();
+      }
+
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      gainNode.connect(audioContext.destination);
+      oscillator.connect(gainNode);
+
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      let freq = 440, duration = 0.2, attack = 0.05, baseVolume = 0.3, waveType: OscillatorType = 'sine';
+
+      switch (type) {
+        case 'messageReceived': freq = 261.63; duration = 0.2; attack = 0.05; baseVolume = 0.3; break; // C4
+        case 'notification': freq = 523.25; duration = 0.4; attack = 0.05; baseVolume = 0.4; waveType = 'triangle'; break; // C5
+        case 'send': freq = 440; duration = 0.1; attack = 0.02; baseVolume = 0.2; break; // A4
+        case 'ui': freq = 600; duration = 0.05; attack = 0.01; baseVolume = 0.1; break;
+        case 'micOn': freq = 300; duration = 0.1; attack = 0.02; baseVolume = 0.2; waveType = 'triangle'; break;
+        case 'micOff': freq = 200; duration = 0.1; attack = 0.02; baseVolume = 0.2; waveType = 'triangle'; break;
+      }
+
+      const finalVolume = baseVolume * soundSettings.masterVolume;
+      
+      oscillator.type = waveType;
+      oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(finalVolume > 0.0001 ? finalVolume : 0.0001, audioContext.currentTime + attack);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration + 0.1);
+
+      oscillator.onended = () => {
+        audioContext.close();
+      };
+    } catch (error) {
+      console.warn("Could not play sound:", error);
+    }
+  }, [settings.soundSettings]);
+
+  const loadStateFromLocalStorage = useCallback(() => {
+    console.log("Loading state from Local Storage...");
+    try {
+        const storedUsers = localStorage.getItem('sarLegacyUsers');
+        setUsers(storedUsers ? JSON.parse(storedUsers) : mockUsers);
+
+        const storedModels = localStorage.getItem('customModels');
+        setCustomModels(storedModels ? JSON.parse(storedModels) : []);
+
+        const storedKeys = localStorage.getItem('apiKeys');
+        setApiKeys(storedKeys ? JSON.parse(storedKeys).map((k: any) => ({ ...k, requestCount: k.requestCount ?? k.usageCount ?? 0, tokenUsage: k.tokenUsage ?? 0, })) : []);
+        
+        const storedGallery = localStorage.getItem('galleryRoot');
+        setGalleryRoot(storedGallery ? JSON.parse(storedGallery) : rootFolder);
+
+        const storedConnectors = localStorage.getItem('connectedConnectorIds');
+        setConnectedConnectorIds(storedConnectors ? JSON.parse(storedConnectors) : []);
+
+        const storedLogs = localStorage.getItem('activityLogs');
+        setLogs(storedLogs ? JSON.parse(storedLogs) : []);
+
+        const storedSettings = localStorage.getItem('appSettings');
+        if (storedSettings) {
+            const parsedSettings = JSON.parse(storedSettings);
+            // Ensure soundSettings object is complete
+            parsedSettings.soundSettings = { ...defaultSoundSettings, ...(parsedSettings.soundSettings || {}) };
+            setSettings({ ...defaultSettings, ...parsedSettings });
+        } else {
+            setSettings(defaultSettings);
+        }
+
+    } catch (error) {
+        console.error("Failed to parse state from localStorage", error);
+        setUsers(mockUsers);
+        setSettings(defaultSettings);
+        setLogs([]);
+    }
+  }, []);
+
+  const handleUpdateAuthStatus = useCallback(async (isSignedIn: boolean) => {
+    setIsDriveConnected(isSignedIn);
+    if (isSignedIn) {
+        try {
+            const data = await driveService.getAppData();
+            if (data) {
+                console.log("Loaded data from Google Drive:", data);
+                setUsers(data.users || mockUsers);
+                setCustomModels(data.customModels || []);
+                setApiKeys(data.apiKeys || []);
+                setSettings(data.settings ? { ...defaultSettings, ...data.settings } : defaultSettings);
+                setGalleryRoot(data.galleryRoot || rootFolder);
+                setConnectedConnectorIds(data.connectedConnectorIds || []);
+                setLogs(data.logs || []);
+            } else {
+                 // First time connecting, save current (local or default) state to Drive
+                console.log("No data found on Drive, performing initial save.");
+                loadStateFromLocalStorage();
+            }
+        } catch (error) {
+            console.error("Failed to load data from Drive, falling back to local storage.", error);
+            loadStateFromLocalStorage();
+        }
+    } else {
+        loadStateFromLocalStorage();
+    }
+    setIsDriveSyncing(false);
+    isInitialLoad.current = false;
+  }, [loadStateFromLocalStorage]);
+
+  useEffect(() => {
+    driveService.initClient(handleUpdateAuthStatus).catch(error => {
+        console.error("Google Drive client initialization failed:", error);
+        loadStateFromLocalStorage();
+        setIsDriveSyncing(false);
+        isInitialLoad.current = false;
+    });
+  }, [handleUpdateAuthStatus, loadStateFromLocalStorage]);
+  
+  // Debounce the entire app data for saving
+  const appDataToSave = useMemo<AppData>(() => ({
+      users, customModels, apiKeys, settings, galleryRoot, connectedConnectorIds, logs
+  }), [users, customModels, apiKeys, settings, galleryRoot, connectedConnectorIds, logs]);
+
+  const debouncedAppData = useDebounce(appDataToSave, 1500);
+
+  useEffect(() => {
+      // Don't save on initial load until syncing is complete
+      if (isInitialLoad.current || isDriveSyncing) return;
+      
+      if (isDriveConnected) {
+          console.log("Saving state to Google Drive...");
+          driveService.saveAppData(debouncedAppData).catch(err => console.error("Failed to save to Drive", err));
+      } else {
+          console.log("Saving state to Local Storage...");
+          try {
+              localStorage.setItem('sarLegacyUsers', JSON.stringify(debouncedAppData.users));
+              localStorage.setItem('customModels', JSON.stringify(debouncedAppData.customModels));
+              localStorage.setItem('apiKeys', JSON.stringify(debouncedAppData.apiKeys));
+              localStorage.setItem('appSettings', JSON.stringify(debouncedAppData.settings));
+              localStorage.setItem('galleryRoot', JSON.stringify(debouncedAppData.galleryRoot));
+              localStorage.setItem('connectedConnectorIds', JSON.stringify(debouncedAppData.connectedConnectorIds));
+              localStorage.setItem('activityLogs', JSON.stringify(debouncedAppData.logs));
+          } catch (error) {
+              console.error("Failed to save to Local Storage", error);
+          }
+      }
+  }, [debouncedAppData, isDriveConnected, isDriveSyncing]);
 
   useEffect(() => {
     try {
-        localStorage.setItem('appSettings', JSON.stringify(settings));
+        const storedUser = localStorage.getItem('sarLegacyLoggedInUser');
+        if (storedUser) {
+            const user: User = JSON.parse(storedUser);
+            if (users.some(u => u.id === user.id)) {
+                setCurrentUser(user);
+            }
+        }
     } catch (error) {
-        console.error("Failed to save settings to localStorage", error);
+        console.error("Failed to parse stored user from localStorage", error);
     }
-    
-    // Apply theme
+  }, [users]);
+
+  useEffect(() => {
     const root = window.document.documentElement;
     const body = window.document.body;
+    
+    let effectiveTheme = settings.theme === 'system' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : settings.theme;
     root.classList.remove('light', 'dark');
     body.classList.remove('light', 'dark');
-
-    let effectiveTheme = settings.theme;
-    if (effectiveTheme === 'system') {
-        effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-
-    if (effectiveTheme === 'light') {
-        root.classList.add('light');
-        body.classList.add('light');
-    } else {
-        root.classList.add('dark');
-        body.classList.add('dark');
-    }
-
-    // Re-initialize chat session if model configs have changed
-    chat.current = createChatSession(settings.modelConfig, activeModel.systemInstruction);
+    root.classList.add(effectiveTheme);
+    body.classList.add(effectiveTheme);
+    document.documentElement.style.fontSize = `${settings.fontSize}%`;
+    body.classList.toggle('compact', settings.compactUI);
+    body.classList.toggle('animations-disabled', settings.animationsDisabled);
 
   }, [settings]);
+
+  useEffect(() => {
+    if (activeModel.provider === 'SAR LEGACY') {
+      chat.current = createChatSession(activeModel, undefined, settings.modelConfig, settings.systemInstruction);
+    } else {
+      chat.current = null;
+    }
+  }, [settings.modelConfig, activeModel, settings.systemInstruction]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        const scrollHeight = textareaRef.current.scrollHeight;
+        textareaRef.current.style.height = `${scrollHeight}px`;
+    }
+  }, [inputValue]);
+
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -265,87 +475,156 @@ const App: React.FC = () => {
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = settings.microphoneLanguage;
-
-      recognition.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map((result) => result[0])
-          .map((result) => result.transcript)
-          .join('');
-        setInputValue(transcript);
-      };
-
-      recognition.onend = () => {
-        setIsRecording(false);
-      };
-      
-      recognition.onerror = (event) => {
-        console.error("Speech recognition error", event.error);
-        setIsRecording(false);
-      };
-
+      recognition.onresult = (event) => setInputValue(Array.from(event.results).map(r => r[0].transcript).join(''));
+      recognition.onend = () => setIsRecording(false);
+      recognition.onerror = (event) => { console.error(event.error); setIsRecording(false); };
       recognitionRef.current = recognition;
     } else {
-      console.warn("Speech Recognition not supported in this browser.");
+      console.warn("Speech Recognition not supported.");
     }
   }, [settings.microphoneLanguage]);
 
   useEffect(() => {
-    if (chatContainerRef.current) {
+    if (chatContainerRef.current && settings.autoScroll && !isSearchActive) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, settings.autoScroll, isSearchActive]);
+
+  useEffect(() => {
+      if (searchTerm) {
+          const results = messages.filter(m => m.text?.toLowerCase().includes(searchTerm.toLowerCase())).map(m => m.id);
+          setSearchResults(results);
+          setCurrentResultIndex(results.length > 0 ? 0 : null);
+      } else {
+          setSearchResults([]);
+          setCurrentResultIndex(null);
+      }
+  }, [searchTerm, messages]);
+
+  useEffect(() => {
+      if (currentResultIndex !== null && searchResults.length > 0) {
+          const messageId = searchResults[currentResultIndex];
+          document.getElementById(`message-${messageId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+  }, [currentResultIndex, searchResults]);
   
-  const handleSelectModel = (model: CustomModel) => {
-    setActiveModel(model);
-    setIsMarketplaceOpen(false);
-    setMessages([]); // Clear chat history for the new model session
+  const checkModelStatus = useCallback(() => {
+    setModelStatus('checking');
+    setModelStatusMessage('Verifying connection...');
+
+    setTimeout(() => {
+        if (!navigator.onLine) {
+            setModelStatus('offline');
+            setModelStatusMessage('No internet connection.');
+            return;
+        }
+
+        if (activeModel.provider !== 'SAR LEGACY') {
+            const hasActiveKey = apiKeys.some(k => k.provider === activeModel.provider && k.status === 'active');
+            if (!hasActiveKey) {
+                setModelStatus('degraded');
+                setModelStatusMessage(`No active API key found for ${activeModel.provider}. Please add one in the Admin Panel.`);
+                return;
+            }
+        }
+        setModelStatus('online');
+        setModelStatusMessage('Connected and ready.');
+    }, 750);
+  }, [activeModel, apiKeys]);
+
+  useEffect(() => {
+      checkModelStatus();
+  }, [activeModel, apiKeys, checkModelStatus]);
+
+  useEffect(() => {
+      const handleOnline = () => checkModelStatus();
+      const handleOffline = () => {
+          setModelStatus('offline');
+          setModelStatusMessage('No internet connection.');
+      };
+
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+
+      return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+      };
+  }, [checkModelStatus]);
+  
+  const handleClearChat = useCallback(() => {
+    setMessages([]);
     speechSynthesis.cancel();
     setCurrentlySpeakingMessageId(null);
-    chat.current = createChatSession(settings.modelConfig, model.systemInstruction);
-  };
-
-  const handleLogin = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    if (user) {
-        const updatedUser = { ...user, lastLogin: new Date().toISOString() };
-        setCurrentUser(updatedUser);
-        setUsers(users.map(u => u.id === userId ? updatedUser : u));
+    setSessionTokenCount({ prompt: 0, response: 0 });
+    setActiveDocument(null);
+    if (activeModel.provider === 'SAR LEGACY') {
+        chat.current = createChatSession(activeModel, undefined, settings.modelConfig, settings.systemInstruction);
+    } else {
+        chat.current = null;
     }
-  };
+  }, [activeModel, settings.modelConfig, settings.systemInstruction]);
 
-  const handleLogout = () => {
+  const handleSelectModel = useCallback((model: CustomModel) => {
+    setActiveModel(model);
+    setIsMarketplaceOpen(false);
+    handleClearChat();
+  }, [handleClearChat]);
+
+  const handleLogin = useCallback(({ username, password, keepLoggedIn }: { username: string; password: string; keepLoggedIn: boolean; }) => {
+    if (username === 'sar' && password === '1234') {
+        const adminUser = users.find(u => u.role === 'admin');
+        if (adminUser) {
+            const updatedUser = { ...adminUser, lastLogin: new Date().toISOString() };
+            setCurrentUser(updatedUser);
+            setUsers(currentUsers => currentUsers.map(u => u.id === adminUser.id ? updatedUser : u));
+            if (keepLoggedIn) {
+                try { localStorage.setItem('sarLegacyLoggedInUser', JSON.stringify(updatedUser)); } catch (e) { console.error(e); }
+            }
+            addLogEntry('User Login', { user: adminUser.name });
+            return true;
+        }
+    }
+    addLogEntry('Failed Login Attempt', { username });
+    return false;
+  }, [users, addLogEntry]);
+
+  const handleLogout = useCallback(() => {
+      addLogEntry('User Logout', { user: currentUser?.name });
       setCurrentUser(null);
-      setMessages([]); // Clear chat on logout
-  };
+      setMessages([]);
+      setSessionTokenCount({ prompt: 0, response: 0 });
+      setActiveDocument(null);
+      try { localStorage.removeItem('sarLegacyLoggedInUser'); } catch (e) { console.error(e); }
+  }, [currentUser?.name, addLogEntry]);
 
-  const startSpeaking = (messageId: string, text: string) => {
+  const startSpeaking = useCallback((messageId: string, text: string) => {
     if (!text || !text.trim()) return;
-    speechSynthesis.cancel(); // Stop any previous speech
+    speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.onend = () => setCurrentlySpeakingMessageId(null);
     speechSynthesis.speak(utterance);
     setCurrentlySpeakingMessageId(messageId);
-  };
+  }, []);
   
-  const handleToggleSpeech = (messageId: string, text: string) => {
+  const handleToggleSpeech = useCallback((messageId: string, text: string) => {
     if (currentlySpeakingMessageId === messageId) {
       speechSynthesis.cancel();
       setCurrentlySpeakingMessageId(null);
     } else {
       startSpeaking(messageId, text);
     }
-  };
+  }, [currentlySpeakingMessageId, startSpeaking]);
 
-  const handleSendMessage = async (messageText: string) => {
+  const handleSendMessage = useCallback(async (messageText: string) => {
     const text = messageText.trim();
     const currentAttachment = attachment;
 
     if (!text && !currentAttachment) return;
 
-    // Stop any currently playing speech when sending a new message
+    playSound('send');
     speechSynthesis.cancel();
     setCurrentlySpeakingMessageId(null);
-
     setIsLoading(true);
     setInputValue('');
     setAttachment(null);
@@ -354,336 +633,822 @@ const App: React.FC = () => {
       id: `user-${Date.now()}`,
       role: MessageRole.USER, 
       text,
-      attachment: currentAttachment ? { url: currentAttachment.url, type: currentAttachment.file.type } : undefined,
+      attachment: currentAttachment ? { url: currentAttachment.url, type: currentAttachment.file.type, name: currentAttachment.file.name, size: currentAttachment.file.size, } : undefined,
     };
-    setMessages(prev => [...prev, userMessage]);
+    
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    
+    if (currentAttachment && !activeDocument) {
+      const { file, url } = currentAttachment;
+      const newGalleryItem: GalleryItem = {
+          id: `gallery-item-${Date.now()}`,
+          type: file.type.startsWith('image/') ? 'image' : (file.type.startsWith('video/') ? 'video' : 'file'),
+          name: file.name, date: new Date().toISOString(), src: url, alt: file.name, fileType: file.type, size: formatFileSize(file.size), file,
+      };
+      setGalleryRoot(prevRoot => galleryService.createFolder(prevRoot, prevRoot.id, newGalleryItem));
+    }
 
-    const isVisualizationRequest = !currentAttachment && (/\b(visualize|chart|graph|plot)\b/i.test(text) || text.includes("Visualize Data"));
+    const isWebSearch = text.startsWith('/web ');
+    const isVisualizationRequest = !isWebSearch && !currentAttachment && (/\b(visualize|chart|graph|plot)\b/i.test(text) || text.includes("Visualize Data"));
+    let textToSend = text;
 
-    if (isVisualizationRequest) {
-      try {
-        const chartData = await generateChartData(text);
-        const modelMessage: ChatMessage = {
-          id: `model-${Date.now()}`,
-          role: MessageRole.MODEL,
-          text: chartData.title || "Here is the chart you requested.",
-          chartData: chartData,
-        };
-        setMessages(prev => [...prev, modelMessage]);
-        if (settings.enableTTS && modelMessage.text) {
-          startSpeaking(modelMessage.id, modelMessage.text);
-        }
-      } catch (error) {
-        console.error("Error handling visualization request:", error);
-        const errorMessage: ChatMessage = {
-          id: `model-${Date.now()}`,
-          role: MessageRole.MODEL,
-          text: error instanceof Error ? error.message : "Sorry, I couldn't create a chart for that. Please try a different request.",
-        };
-        setMessages(prev => [...prev, errorMessage]);
-        if (settings.enableTTS) {
-          startSpeaking(errorMessage.id, errorMessage.text);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    } else { // Regular chat logic with potential attachment
-        if (!chat.current) {
+    if (activeDocument && updatedMessages.filter(m => m.role === MessageRole.USER).length === 1) {
+        if (!activeDocument.file) {
+            const errorMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: "The file content is not available for this session. Please re-upload the document to analyze it." };
+            setMessages(prev => [...prev, errorMessage]);
             setIsLoading(false);
             return;
         }
+        try {
+            const content = await fileService.extractTextFromFile(activeDocument.file);
+            textToSend = `Based on the following document, please answer the user's question.\n\nDOCUMENT CONTENT:\n---\n${content}\n---\n\nUSER QUESTION:\n${text}`;
+        } catch (error) {
+            const errorText = error instanceof Error ? error.message : "Sorry, I could not read the document content.";
+            const errorMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: errorText };
+            setMessages(prev => [...prev, errorMessage]);
+            setIsLoading(false);
+            return;
+        }
+    }
+
+
+    if (isWebSearch) {
+        const query = text.substring(5).trim();
+        if (!query) {
+            const errorMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: "Please provide a query to search the web. For example: `/web latest AI news`" };
+            setMessages(prev => [...prev, errorMessage]);
+            setIsLoading(false);
+            return;
+        }
+        
+        try {
+            const response = await generateContentWithGoogleSearch(query);
+            const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+            const modelMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: response.text, groundingChunks: groundingChunks, };
+            setMessages(prev => [...prev, modelMessage]);
+            if (modelMessage.text) {
+                if (settings.enableTTS) startSpeaking(modelMessage.id, modelMessage.text);
+                playSound('messageReceived');
+            }
+        } catch (error) {
+            const errorText = error instanceof Error ? error.message : "Sorry, I encountered an error while searching the web.";
+            const errorMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: errorText };
+            setMessages(prev => [...prev, errorMessage]);
+            if (settings.enableTTS) startSpeaking(errorMessage.id, errorText);
+        } finally {
+            setIsLoading(false);
+        }
+    } else if (isVisualizationRequest) {
+      try {
+        const chartData = await generateChartData(text);
+        const modelMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: chartData.title || "Here is the chart you requested.", chartData: chartData, };
+        setMessages(prev => [...prev, modelMessage]);
+         if (modelMessage.text) {
+            if (settings.enableTTS) startSpeaking(modelMessage.id, modelMessage.text);
+            playSound('messageReceived');
+        }
+      } catch (error) {
+        const errorText = error instanceof Error ? error.message : "Sorry, I couldn't create a chart.";
+        const errorMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: errorText };
+        setMessages(prev => [...prev, errorMessage]);
+        if (settings.enableTTS) startSpeaking(errorMessage.id, errorText);
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+        let session: Chat | null = chat.current;
+        let keyToUse: ApiKey | undefined;
+
+        if (activeModel.provider !== 'SAR LEGACY') {
+            const availableKeys = apiKeys.filter(k => k.provider === activeModel.provider && k.status === 'active');
+            if (availableKeys.length === 0) {
+                const errorText = `No active API Key found for ${activeModel.provider}. Please add one in the Admin Panel.`;
+                setMessages(prev => [...prev, { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: errorText }]);
+                setIsLoading(false); return;
+            }
+            keyToUse = availableKeys.sort((a, b) => new Date(a.lastUsed || 0).getTime() - new Date(b.lastUsed || 0).getTime())[0];
+            session = createChatSession(activeModel, keyToUse.key, settings.modelConfig, settings.systemInstruction);
+        }
+
+        if (!session) { 
+            const errorText = "Chat session could not be started. Please check your model configuration.";
+            setMessages(prev => [...prev, { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: errorText }]);
+            setIsLoading(false); return; 
+        }
+        
         const messageId = `model-${Date.now()}`;
         try {
             setMessages(prev => [...prev, { id: messageId, role: MessageRole.MODEL, text: '' }]);
+            
+            const messageParts = currentAttachment ? [ textToSend, { inlineData: { data: currentAttachment.url.split(',')[1], mimeType: currentAttachment.file.type } } ] : [textToSend];
+            // Fix: Pass message content in a `SendMessageParameters` object.
+            const streamResult = await session.sendMessageStream({ message: messageParts });
 
-            let stream;
-            if (currentAttachment) {
-                const base64Data = currentAttachment.url.split(',')[1];
-                const imagePart = { inlineData: { data: base64Data, mimeType: currentAttachment.file.type } };
-                const parts: any[] = [{ text }];
-                if (imagePart.inlineData.data) {
-                    parts.push(imagePart);
-                }
-                // FIX: The `sendMessageStream` method expects a `message` property that can be a string or an array of parts for multimodal input. The original code was incorrectly passing a `parts` property.
-                stream = await chat.current.sendMessageStream({ message: parts });
-            } else {
-                stream = await chat.current.sendMessageStream({ message: text });
-            }
+            // Fix: Handle different return types from real SDK (AsyncGenerator) and mock ({stream, response}).
+            // The real SDK stream does not provide usage metadata, so token counting will only work for mocked providers.
+            const isRealSDKResponse = typeof (streamResult as any)[Symbol.asyncIterator] === 'function';
+
+            const stream = isRealSDKResponse ? streamResult : (streamResult as any).stream;
+            const responsePromise = isRealSDKResponse ? null : (streamResult as any).response;
 
             let accumulatedText = '';
-            for await (const chunk of stream) {
-            accumulatedText += chunk.text;
-            setMessages(prev => {
-                const newMessages = [...prev];
-                const lastMessageIndex = newMessages.findIndex(m => m.id === messageId);
-                if (lastMessageIndex !== -1) {
-                    newMessages[lastMessageIndex] = { ...newMessages[lastMessageIndex], text: accumulatedText };
-                }
-                return newMessages;
-            });
+            for await (const chunk of stream as AsyncGenerator<GenerateContentResponse>) {
+              accumulatedText += chunk.text;
+              setMessages(prev => prev.map(m => m.id === messageId ? { ...m, text: accumulatedText } : m));
             }
-            if (settings.enableTTS) {
-                startSpeaking(messageId, accumulatedText);
+            
+            if (responsePromise) {
+                const finalResponse = await responsePromise;
+                const usageMetadata = finalResponse.usageMetadata;
+                
+                if (usageMetadata) {
+                    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, usageMetadata } : m));
+                    setSessionTokenCount(prev => ({ prompt: prev.prompt + (usageMetadata.promptTokenCount || 0), response: prev.response + (usageMetadata.candidatesTokenCount || 0) }));
+                }
+
+                if (keyToUse) {
+                    setApiKeys(prev => prev.map(k => k.id === keyToUse!.id ? { ...k, requestCount: k.requestCount + 1, lastUsed: new Date().toISOString(), tokenUsage: (k.tokenUsage || 0) + (usageMetadata?.totalTokenCount || 0), } : k));
+                }
+            }
+
+            if (accumulatedText) {
+                if (settings.enableTTS) startSpeaking(messageId, accumulatedText);
+                playSound('messageReceived');
             }
         } catch (error) {
             console.error("Error sending message:", error);
-            const errorText = "Sorry, I encountered an error. Please try again.";
-            const errorMessage = { id: messageId, role: MessageRole.MODEL, text: errorText };
-            setMessages(prev => {
-                const newMessages = [...prev];
-                const msgIndex = newMessages.findIndex(m => m.id === messageId);
-                if (msgIndex !== -1) {
-                    newMessages[msgIndex] = errorMessage;
-                } else {
-                    newMessages.push(errorMessage);
-                }
-                return newMessages;
-            });
-            if (settings.enableTTS) {
-                startSpeaking(errorMessage.id, errorMessage.text);
-            }
+            const errorText = error instanceof Error ? error.message : "Sorry, I encountered an error. Please try again.";
+            setMessages(prev => prev.map(m => m.id === messageId ? { ...m, text: errorText } : m));
+            if (settings.enableTTS) startSpeaking(messageId, errorText);
+            playSound('messageReceived'); // Play sound even for error message
         } finally {
             setIsLoading(false);
         }
     }
-  };
+  }, [attachment, settings.enableTTS, settings.modelConfig, startSpeaking, activeModel, apiKeys, settings.systemInstruction, messages, activeDocument, playSound]);
 
-  const handleMicClick = () => {
+  const handleMicClick = useCallback(() => {
     if (!recognitionRef.current) return;
     if (isRecording) {
       recognitionRef.current.stop();
-      setIsRecording(false);
+      playSound('micOff');
     } else {
       setInputValue('');
       recognitionRef.current.start();
-      setIsRecording(true);
+      playSound('micOn');
     }
-  };
-
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleSendMessage(inputValue);
-  };
+    setIsRecording(!isRecording);
+  }, [isRecording, playSound]);
   
-  const handleClearChat = () => {
-    setMessages([]);
-    speechSynthesis.cancel();
-    setCurrentlySpeakingMessageId(null);
-    chat.current = createChatSession(settings.modelConfig, activeModel.systemInstruction); // Reset chat history on Gemini's side
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    if (!file) { if (event.target) event.target.value = ''; return; }
+
+    if (file.type === 'text/plain') {
         const reader = new FileReader();
         reader.onloadend = () => {
-            setAttachment({ file, url: reader.result as string });
+            const url = reader.result as string;
+            const newGalleryItem: GalleryItem = {
+                id: `gallery-item-${Date.now()}`, type: 'file', name: file.name, date: new Date().toISOString(), src: url,
+                fileType: file.type, size: formatFileSize(file.size), file: file,
+            };
+            setGalleryRoot(prevRoot => galleryService.createFolder(prevRoot, prevRoot.id, newGalleryItem));
+            setActiveDocument(newGalleryItem);
+            setMessages([{ id: `model-rag-intro-${Date.now()}`, role: MessageRole.MODEL, text: `Now analyzing "${file.name}". Ask me anything about its content.` }]);
+            setAttachment(null);
         };
         reader.readAsDataURL(file);
+    } else {
+        const reader = new FileReader();
+        reader.onloadend = () => { setAttachment({ file, url: reader.result as string }); setActiveDocument(null); };
+        reader.readAsDataURL(file);
     }
-    if (event.target) {
-        event.target.value = '';
+    if (event.target) event.target.value = '';
+  }, []);
+  
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((settings.sendOnEnter && e.key === 'Enter' && !e.shiftKey) || (!settings.sendOnEnter && e.key === 'Enter' && (e.metaKey || e.ctrlKey))) {
+        e.preventDefault();
+        handleSendMessage(inputValue);
     }
-  };
+  }, [settings.sendOnEnter, inputValue, handleSendMessage]);
 
-  const handleRemoveAttachment = () => {
-    setAttachment(null);
-  };
+  const handleNextResult = useCallback(() => currentResultIndex !== null && setCurrentResultIndex((p) => (p! + 1) % searchResults.length), [currentResultIndex, searchResults.length]);
+  const handlePrevResult = useCallback(() => currentResultIndex !== null && setCurrentResultIndex((p) => (p! - 1 + searchResults.length) % searchResults.length), [currentResultIndex, searchResults.length]);
 
-  // User Management Handlers
-  const handleAddUser = (user: Omit<User, 'id' | 'lastLogin'>) => {
-    const newUser: User = {
-        ...user,
-        id: `user-${Date.now()}`,
-        lastLogin: new Date().toISOString()
-    };
-    setUsers([...users, newUser]);
-  };
+  const handleAddUser = useCallback((user: Omit<User, 'id' | 'lastLogin'>) => {
+    setUsers(prev => [...prev, { ...user, id: `user-${Date.now()}`, lastLogin: new Date().toISOString() }]);
+    addLogEntry('User Created', { name: user.name, role: user.role });
+  }, [addLogEntry]);
 
-  const handleUpdateUser = (updatedUser: User) => {
-    setUsers(users.map(user => user.id === updatedUser.id ? updatedUser : user));
-  };
+  const handleUpdateUser = useCallback((updatedUser: User) => {
+    setUsers(prev => prev.map(user => user.id === updatedUser.id ? updatedUser : user));
+    addLogEntry('User Updated', { name: updatedUser.name, id: updatedUser.id });
+  }, [addLogEntry]);
+
+  const handleDeleteUser = useCallback((userId: string) => {
+    const userToDelete = users.find(u => u.id === userId);
+    setUsers(prev => prev.filter(user => user.id !== userId));
+    if (userToDelete) {
+      addLogEntry('User Deleted', { name: userToDelete.name, id: userId });
+    }
+  }, [users, addLogEntry]);
   
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
-  };
+  const handleSaveModel = useCallback((modelToSave: CustomModel) => {
+    const isEditing = customModels.some(m => m.id === modelToSave.id);
+    setCustomModels(prev => isEditing ? prev.map(m => m.id === modelToSave.id ? modelToSave : m) : [...prev, { ...modelToSave, id: `custom-${Date.now()}` }]);
+    setIsModelModalOpen(false);
+    addLogEntry(isEditing ? 'Model Updated' : 'Model Created', { name: modelToSave.name });
+  }, [customModels, addLogEntry]);
+
+  const handleDeleteModel = useCallback((modelId: string) => {
+    const modelToDelete = customModels.find(m => m.id === modelId);
+    setCustomModels(prev => prev.filter(m => m.id !== modelId));
+    if(modelToDelete) {
+        addLogEntry('Model Deleted', { name: modelToDelete.name });
+    }
+  }, [customModels, addLogEntry]);
   
-  const openMarketplace = () => {
+  const handleImportModels = useCallback((importedData: any) => {
+    if (!Array.isArray(importedData)) {
+        alert('Import failed: JSON file should contain an array of models.');
+        return;
+    }
+
+    const newModels: CustomModel[] = [];
+    let importCount = 0;
+    let errorCount = 0;
+
+    importedData.forEach((importedModel: any, index: number) => {
+        if (
+            typeof importedModel.name === 'string' &&
+            typeof importedModel.provider === 'string' &&
+            typeof importedModel.modelId === 'string' &&
+            typeof importedModel.systemInstruction === 'string'
+        ) {
+            let newName = importedModel.name;
+            const existingNames = new Set([...customModels.map(m => m.name), ...newModels.map(m => m.name)]);
+            if (existingNames.has(newName)) {
+                let counter = 1;
+                let prospectiveName;
+                do {
+                    prospectiveName = `${importedModel.name} (${counter++})`;
+                } while (existingNames.has(prospectiveName));
+                newName = prospectiveName;
+            }
+
+            const newModel: CustomModel = {
+                id: `custom-${Date.now()}-${index}`,
+                name: newName,
+                description: importedModel.description || '',
+                category: importedModel.category || 'Custom',
+                provider: importedModel.provider,
+                modelId: importedModel.modelId,
+                systemInstruction: importedModel.systemInstruction,
+                icon: React.createElement(CpuChipIcon),
+                isEditable: true,
+            };
+            newModels.push(newModel);
+            importCount++;
+        } else {
+            errorCount++;
+        }
+    });
+
+    if (newModels.length > 0) {
+        setCustomModels(prev => [...prev, ...newModels]);
+        addLogEntry('Models Imported', { count: newModels.length });
+    }
+
+    let alertMessage = '';
+    if (importCount > 0) {
+        alertMessage += `Successfully imported ${importCount} model(s).`;
+    }
+    if (errorCount > 0) {
+        alertMessage += `\nSkipped ${errorCount} invalid model entry(s).`;
+    }
+    if (alertMessage) {
+        alert(alertMessage.trim());
+    }
+  }, [customModels, addLogEntry]);
+
+  const openAddModelModal = useCallback(() => { setEditingModel(null); setIsModelModalOpen(true); }, []);
+  const openEditModelModal = useCallback((model: CustomModel) => { setEditingModel(model); setIsModelModalOpen(true); }, []);
+
+  const handleAddApiKey = useCallback((key: Omit<ApiKey, 'id'|'requestCount'|'tokenUsage'|'lastUsed'>) => {
+    setApiKeys(prev => [...prev, { ...key, id: `key-${Date.now()}`, requestCount: 0, tokenUsage: 0, lastUsed: null }]);
+    addLogEntry('API Key Added', { name: key.name, provider: key.provider });
+  }, [addLogEntry]);
+
+  const handleUpdateApiKey = useCallback((updatedKey: ApiKey) => {
+    setApiKeys(prev => prev.map(key => key.id === updatedKey.id ? updatedKey : key));
+    addLogEntry('API Key Updated', { name: updatedKey.name });
+  }, [addLogEntry]);
+
+  const handleDeleteApiKey = useCallback((keyId: string) => {
+    const keyToDelete = apiKeys.find(k => k.id === keyId);
+    setApiKeys(prev => prev.filter(key => key.id !== keyId));
+    if (keyToDelete) {
+        addLogEntry('API Key Deleted', { name: keyToDelete.name });
+    }
+  }, [apiKeys, addLogEntry]);
+  
+  const handleGalleryCreateFolder = useCallback((parentId: string, folderName: string) => {
+    const newFolder: GalleryItem = { id: `folder-${Date.now()}`, type: 'folder', name: folderName, date: new Date().toISOString(), children: [] };
+    setGalleryRoot(currentRoot => galleryService.createFolder(currentRoot, parentId, newFolder));
+    addLogEntry('Folder Created', { name: folderName });
+  }, [addLogEntry]);
+
+  const handleGalleryRenameItem = useCallback((itemId: string, newName:string) => {
+    setGalleryRoot(currentRoot => galleryService.renameItem(currentRoot, itemId, newName));
+    addLogEntry('Item Renamed', { id: itemId, newName });
+  }, [addLogEntry]);
+
+  const handleGalleryDeleteItems = useCallback((itemIds: string[]) => {
+    if (!confirm(`Are you sure you want to delete ${itemIds.length} item(s)? This action cannot be undone.`)) return;
+    setGalleryRoot(currentRoot => galleryService.deleteItems(currentRoot, itemIds));
+    addLogEntry('Items Deleted', { count: itemIds.length, ids: itemIds.join(', ') });
+  }, [addLogEntry]);
+
+  const handleGalleryMoveItems = useCallback((itemIds: string[], destinationId: string) => {
+    setGalleryRoot(currentRoot => galleryService.moveItems(currentRoot, itemIds, destinationId));
+    addLogEntry('Items Moved', { count: itemIds.length, destinationId });
+  }, [addLogEntry]);
+  
+  const handleChatWithDocument = useCallback((item: GalleryItem) => {
+    if (!item.file) { alert("To chat about this document from a previous session, please re-upload it."); return; }
+    setActiveDocument(item);
     setIsGalleryOpen(false);
-    setIsMarketplaceOpen(true);
-  };
+    setMessages([{ id: `model-rag-intro-${Date.now()}`, role: MessageRole.MODEL, text: `Now analyzing "${item.name}". Ask me anything about its content.` }]);
+  }, []);
 
-  const openGallery = () => {
-    setIsMarketplaceOpen(false);
-    setIsGalleryOpen(true);
-  };
+  const handleToggleConnector = useCallback(async (connectorId: string) => {
+    const connector = mockConnectors.find(c => c.id === connectorId);
+    const isCurrentlyConnected = connectedConnectorIds.includes(connectorId);
+    const action = isCurrentlyConnected ? 'Connector Disconnected' : 'Connector Connected';
+    
+    if (connectorId === 'google-drive') {
+        setIsDriveConnecting(true);
+        try {
+            if (isDriveConnected) {
+                await driveService.signOut();
+                setConnectedConnectorIds(prev => prev.filter(id => id !== 'google-drive'));
+            } else {
+                await driveService.signIn();
+                setConnectedConnectorIds(prev => [...new Set([...prev, 'google-drive'])]);
+            }
+            addLogEntry(action, { name: connector?.name || connectorId });
+        } catch (error) {
+            console.error("Failed to toggle Google Drive connection:", error);
+            alert(`Error: ${error instanceof Error ? error.message : String(error)}`);
+        } finally {
+            setIsDriveConnecting(false);
+        }
+    } else {
+        setConnectedConnectorIds(p => isCurrentlyConnected ? p.filter(id => id !== connectorId) : [...p, connectorId]);
+        addLogEntry(action, { name: connector?.name || connectorId });
+    }
+  }, [isDriveConnected, addLogEntry, connectedConnectorIds]);
+
+  const openMarketplace = useCallback(() => { setIsGalleryOpen(false); setIsConnectorsPanelOpen(false); setIsSarStudioOpen(false); setIsMarketplaceOpen(true); }, []);
+  const openGallery = useCallback(() => { setIsMarketplaceOpen(false); setIsConnectorsPanelOpen(false); setIsSarStudioOpen(false); setIsGalleryOpen(true); }, []);
+  const openConnectorsPanel = useCallback(() => { setIsMarketplaceOpen(false); setIsGalleryOpen(false); setIsSarStudioOpen(false); setIsConnectorsPanelOpen(true); }, []);
+  const openSarStudio = useCallback(() => { setIsMarketplaceOpen(false); setIsGalleryOpen(false); setIsConnectorsPanelOpen(false); setIsSarStudioOpen(true); }, []);
+
+  const handleImagesGenerated = useCallback((images: GeneratedImageData[]) => {
+    const aiGenerationsFolderId = 'ai-generations-folder';
+    addLogEntry('Images Generated', { count: images.length });
+
+    setGalleryRoot(currentRoot => {
+        let updatedRoot = { ...currentRoot };
+        const aiFolder = galleryService.findItem(updatedRoot, aiGenerationsFolderId);
+
+        if (!aiFolder) {
+            const newFolder: GalleryItem = {
+                id: aiGenerationsFolderId,
+                type: 'folder',
+                name: 'AI Generations',
+                date: new Date().toISOString(),
+                children: []
+            };
+            updatedRoot = galleryService.createFolder(updatedRoot, 'root', newFolder);
+        }
+        
+        const newImageItems: GalleryItem[] = images.map((img, index) => ({
+            id: `gallery-item-${Date.now()}-${index}`,
+            type: 'image',
+            name: `AI Image - ${img.prompt.substring(0, 30).trim() || 'Untitled'}...`,
+            src: `data:image/jpeg;base64,${img.base64}`,
+            alt: img.prompt,
+            prompt: img.prompt,
+            date: new Date().toISOString(),
+            size: formatFileSize(img.base64.length * 3 / 4),
+            fileType: 'image/jpeg',
+        }));
+        
+        let finalRoot = updatedRoot;
+        for (const item of newImageItems.reverse()) { // Add new items to the top
+            finalRoot = galleryService.createFolder(finalRoot, aiGenerationsFolderId, item);
+        }
+        
+        return finalRoot;
+    });
+
+    setNotifications(prev => [
+        { 
+            id: Date.now(), 
+            icon: <GenerateIcon className="w-5 h-5 text-purple-400" />, 
+            title: `${images.length} Image(s) Generated`,
+            description: "Your new images have been saved to the Gallery.", 
+            timestamp: "Just now" 
+        },
+        ...prev
+    ].slice(0, 10));
+
+    playSound('notification');
+    setIsSarStudioOpen(false);
+    openGallery();
+  }, [openGallery, addLogEntry, playSound]);
+  
+    const handleSaveEditedImage = useCallback((imageData: { base64: string, prompt: string, name: string }) => {
+        const aiGenerationsFolderId = 'ai-generations-folder';
+        addLogEntry('Image Edited', { name: imageData.name });
+
+        setGalleryRoot(currentRoot => {
+            let updatedRoot = { ...currentRoot };
+            const aiFolder = galleryService.findItem(updatedRoot, aiGenerationsFolderId);
+
+            if (!aiFolder) {
+                const newFolder: GalleryItem = {
+                    id: aiGenerationsFolderId, type: 'folder', name: 'AI Generations',
+                    date: new Date().toISOString(), children: []
+                };
+                updatedRoot = galleryService.createFolder(updatedRoot, 'root', newFolder);
+            }
+            
+            const newImageItem: GalleryItem = {
+                id: `gallery-item-${Date.now()}`,
+                type: 'image',
+                name: imageData.name,
+                src: `data:image/png;base64,${imageData.base64}`,
+                alt: imageData.prompt,
+                prompt: imageData.prompt,
+                date: new Date().toISOString(),
+                size: formatFileSize(imageData.base64.length * 3 / 4),
+                fileType: 'image/png'
+            };
+            
+            const finalRoot = galleryService.createFolder(updatedRoot, aiGenerationsFolderId, newImageItem);
+            return finalRoot;
+        });
+
+        setNotifications(prev => [
+            { 
+                id: Date.now(), 
+                icon: <GenerateIcon className="w-5 h-5 text-purple-400" />, 
+                title: "Image Edit Complete",
+                description: `"${imageData.name}" saved to Gallery.`, 
+                timestamp: "Just now" 
+            },
+            ...prev
+        ].slice(0, 10));
+        
+        playSound('notification');
+    }, [addLogEntry, playSound]);
+
+    const handleVideoGenerated = useCallback((videoData: { blob: Blob, prompt: string }) => {
+        const aiGenerationsFolderId = 'ai-generations-folder';
+        addLogEntry('Video Generated', { prompt: videoData.prompt });
+    
+        setGalleryRoot(currentRoot => {
+            let updatedRoot = { ...currentRoot };
+            const aiFolder = galleryService.findItem(updatedRoot, aiGenerationsFolderId);
+    
+            if (!aiFolder) {
+                const newFolder: GalleryItem = {
+                    id: aiGenerationsFolderId, type: 'folder', name: 'AI Generations',
+                    date: new Date().toISOString(), children: []
+                };
+                updatedRoot = galleryService.createFolder(updatedRoot, 'root', newFolder);
+            }
+    
+            const file = new File([videoData.blob], `ai-video-${Date.now()}.mp4`, { type: 'video/mp4' });
+            const src = URL.createObjectURL(videoData.blob);
+    
+            const newVideoItem: GalleryItem = {
+                id: `gallery-item-${Date.now()}`,
+                type: 'video',
+                name: `AI Video - ${videoData.prompt.substring(0, 30).trim() || 'Untitled'}...`,
+                src: src,
+                prompt: videoData.prompt,
+                date: new Date().toISOString(),
+                size: formatFileSize(videoData.blob.size),
+                fileType: 'video/mp4',
+                file: file,
+            };
+    
+            return galleryService.createFolder(updatedRoot, aiGenerationsFolderId, newVideoItem);
+        });
+    
+        setNotifications(prev => [
+            { id: Date.now(), icon: <MovieIcon className="w-5 h-5 text-purple-400" />, title: "Video Generation Complete", description: "Your new video has been saved to the Gallery.", timestamp: "Just now" },
+            ...prev
+        ].slice(0, 10));
+    
+        playSound('notification');
+        setIsSarStudioOpen(false);
+        openGallery();
+    }, [openGallery, addLogEntry, playSound]);
+
+    const handleProjectGenerated = useCallback((data: { projectPlan: ProjectPlan, files: GeneratedFile[] }) => {
+        const sarProjectsFolderId = 'sar-projects-folder';
+        addLogEntry('SAR Project Generated', { name: data.projectPlan.projectName });
+
+        setGalleryRoot(currentRoot => {
+            let updatedRoot = { ...currentRoot };
+            const projectsFolder = galleryService.findItem(updatedRoot, sarProjectsFolderId);
+    
+            if (!projectsFolder) {
+                 const newFolder: GalleryItem = {
+                    id: sarProjectsFolderId, type: 'folder', name: 'SAR Projects',
+                    date: new Date().toISOString(), children: []
+                };
+                updatedRoot = galleryService.createFolder(updatedRoot, 'root', newFolder);
+            }
+    
+            const newProjectItem: GalleryItem = {
+                id: `sar-project-${Date.now()}`,
+                type: 'sar_project',
+                name: data.projectPlan.projectName,
+                date: new Date().toISOString(),
+                projectPlan: data.projectPlan,
+                generatedFiles: data.files,
+                size: `${data.files.length} files`,
+            };
+    
+            return galleryService.createFolder(updatedRoot, sarProjectsFolderId, newProjectItem);
+        });
+    
+        setNotifications(prev => [
+            { id: Date.now(), icon: <SparkleIcon className="w-5 h-5 text-purple-400" />, title: "Project Generation Complete", description: `"${data.projectPlan.projectName}" saved to Gallery.`, timestamp: "Just now" },
+            ...prev
+        ].slice(0, 10));
+    
+        playSound('notification');
+        setIsSarStudioOpen(false);
+        openGallery();
+    }, [openGallery, addLogEntry, playSound]);
+
+    const handleEditImageRequest = useCallback((item: GalleryItem) => {
+        setEditingImage(item);
+    }, []);
+
+  const handlePreviewSarProject = useCallback((item: GalleryItem) => {
+    if (item.type !== 'sar_project' || !item.generatedFiles) return;
+    setProjectToPreview(item);
+  }, []);
+
+  const handleClearLogs = useCallback(() => {
+    setLogs([]);
+    addLogEntry('Activity Log Cleared');
+  }, [addLogEntry]);
 
   const suggestions = [
-    { text: 'Recommend a movie', icon: <MovieIcon /> },
-    { text: 'Generate image', icon: <GenerateIcon /> },
-    { text: 'Visualize Data', icon: <ChartBarIcon /> },
-    { text: 'Write a post', icon: <WriteIcon /> },
-    { text: 'Data analysis', icon: <DataAnalysisIcon /> },
-    { text: 'More', icon: <MoreIcon /> },
+    { text: 'Recommend a movie', icon: <MovieIcon /> }, { text: 'Generate image', icon: <GenerateIcon /> },
+    { text: 'Search Web', icon: <SearchIcon /> }, { text: 'Visualize Data', icon: <ChartBarIcon /> },
+    { text: 'Write a post', icon: <WriteIcon /> }, { text: 'Data analysis', icon: <DataAnalysisIcon /> },
   ];
+  
+  const handleContextMenu = useCallback((event: React.MouseEvent, message: ChatMessage) => { event.preventDefault(); setContextMenu({ isOpen: true, position: { x: event.clientX, y: event.clientY }, message }); }, []);
+  const handleCloseContextMenu = useCallback(() => setContextMenu(prev => ({ ...prev, isOpen: false, message: null })), []);
+  
+  const handleExportMessage = useCallback((message: ChatMessage) => {
+    let content = '';
+    const fileExtension = settings.exportFormat;
+    const filename = `message-${message.id}.${fileExtension === 'markdown' ? 'md' : fileExtension}`;
 
-  if (!currentUser) {
-    return <LoginScreen users={users} onLogin={handleLogin} />;
+    switch (settings.exportFormat) {
+      case 'json': content = JSON.stringify(message, null, 2); break;
+      case 'markdown': content = `**[${message.role}]**\n\n${message.attachment ? `*Attachment: ${message.attachment.name}*\n\n` : ''}${message.text || ''}`; break;
+      default: content = `[${message.role}]\n\n${message.attachment ? `Attachment: ${message.attachment.name}\n\n` : ''}${message.text || ''}`; break;
+    }
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  }, [settings.exportFormat]);
+
+  const handleBackupAppData = useCallback(() => {
+    try {
+        const backupData = {
+            users,
+            customModels: customModels.map(({ icon, ...rest }) => rest), // Remove React component
+            apiKeys,
+            settings,
+            galleryRoot: galleryService.stripFileObjects(galleryRoot), // Remove File objects
+            connectedConnectorIds
+        };
+        const jsonString = JSON.stringify(backupData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `sar-legacy-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        addLogEntry('App Data Backed Up');
+    } catch (error) {
+        console.error("Failed to back up app data:", error);
+        alert("An error occurred while creating the backup.");
+    }
+  }, [users, customModels, apiKeys, settings, galleryRoot, connectedConnectorIds, addLogEntry]);
+
+  const handleRestoreAppData = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const text = e.target?.result;
+            if (typeof text !== 'string') throw new Error("File could not be read.");
+            const data = JSON.parse(text);
+
+            if (!data.users || !data.customModels || !data.settings) {
+                throw new Error("Invalid backup file format.");
+            }
+            
+            if (confirm("Are you sure you want to restore from this backup? This will overwrite all current settings, models, and user data.")) {
+                setUsers(data.users);
+                setCustomModels(data.customModels.map((m: any) => ({...m, icon: React.createElement(CpuChipIcon)})));
+                setApiKeys(data.apiKeys || []);
+                setSettings({ ...defaultSettings, ...data.settings });
+                setGalleryRoot(data.galleryRoot || rootFolder);
+                setConnectedConnectorIds(data.connectedConnectorIds || []);
+                
+                addLogEntry('App Data Restored');
+                
+                setTimeout(() => {
+                    alert("Restore successful. The application will now reload.");
+                    setTimeout(() => window.location.reload(), 1600);
+                }, 100);
+            }
+        } catch (error) {
+            console.error("Failed to restore app data:", error);
+            alert(`Restore failed. Please ensure you are using a valid backup file. Error: ${error instanceof Error ? error.message : "Unknown error"}`);
+        } finally {
+            if (event.target) event.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+  }, [addLogEntry]);
+
+  const handleResetApplication = useCallback(() => {
+    if (confirm("WARNING: This will delete all local data, including users, custom models, and API keys, and log you out. Are you sure you want to proceed?")) {
+        console.log("Resetting application...");
+        localStorage.removeItem('sarLegacyUsers');
+        localStorage.removeItem('customModels');
+        localStorage.removeItem('apiKeys');
+        localStorage.removeItem('appSettings');
+        localStorage.removeItem('galleryRoot');
+        localStorage.removeItem('connectedConnectorIds');
+        localStorage.removeItem('activityLogs');
+        localStorage.removeItem('sarLegacyLoggedInUser');
+        window.location.reload();
+    }
+  }, []);
+
+  if (!currentUser) return <LoginScreen onLogin={handleLogin} />;
+  if (isDriveSyncing) return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+          <LoadingIndicator />
+      </div>
+  );
+
+  const contextMenuOptions = [];
+  if (contextMenu.message) {
+    if (contextMenu.message.text?.trim()) {
+      contextMenuOptions.push({ label: 'Copy Message', icon: <CopyIcon />, action: () => navigator.clipboard.writeText(contextMenu.message!.text), });
+      if (settings.enableTTS && contextMenu.message.role === MessageRole.MODEL) {
+        contextMenuOptions.push({ label: 'Read Aloud', icon: <SpeakerOnIcon />, action: () => handleToggleSpeech(contextMenu.message!.id, contextMenu.message!.text), });
+      }
+    }
+    contextMenuOptions.push({ label: 'Export Message', icon: <DownloadIcon />, action: () => handleExportMessage(contextMenu.message!), });
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 text-[var(--text-primary)] font-sans overflow-hidden">
       <div className="w-full max-w-[1400px] h-[90vh] max-h-[900px] flex gap-4">
-        {/* FIX: Pass the settingsButtonRef prop to the Sidebar component. */}
-        <Sidebar 
-            onSettingsClick={() => setIsSettingsOpen(true)} 
-            settingsButtonRef={settingsButtonRef}
-            isAdmin={currentUser.role === 'admin'}
-            onAdminClick={() => setIsAdminPanelOpen(true)}
-            onMarketplaceClick={openMarketplace}
-            onGalleryClick={openGallery}
-        />
+        <Sidebar onSettingsClick={() => setIsSettingsOpen(true)} settingsButtonRef={settingsButtonRef} isAdmin={currentUser.role === 'admin'} onAdminClick={() => setIsAdminPanelOpen(true)} onMarketplaceClick={openMarketplace} onGalleryClick={openGallery} onSarStudioClick={openSarStudio} onConnectorsClick={openConnectorsPanel} />
         <main className="flex-1 bg-[var(--bg-tertiary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] p-8 flex flex-col relative overflow-hidden custom-scrollbar">
-          <SettingsPanel
-              isOpen={isSettingsOpen}
-              onClose={() => setIsSettingsOpen(false)}
-              settings={settings}
-              onSettingsChange={setSettings}
-              onClearChat={handleClearChat}
-              triggerRef={settingsButtonRef}
-            />
-            {currentUser.role === 'admin' && (
-                <AdminPanel 
-                    isOpen={isAdminPanelOpen}
-                    onClose={() => setIsAdminPanelOpen(false)}
-                    users={users}
-                    onAddUser={handleAddUser}
-                    onUpdateUser={handleUpdateUser}
-                    onDeleteUser={handleDeleteUser}
-                />
-            )}
-            
-            {isGalleryOpen ? (
-                <Gallery onClose={() => setIsGalleryOpen(false)} />
-            ) : isMarketplaceOpen ? (
-                <ModelMarketplace onSelectModel={handleSelectModel} onClose={() => setIsMarketplaceOpen(false)} />
-            ) : (
-             <>
-                <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-purple-500/20 to-transparent pointer-events-none -z-10"></div>
-                <header className="flex items-center justify-between text-[var(--text-muted)]">
-                    <div className="flex items-center gap-2">
-                    <h1 className="font-semibold text-[var(--text-primary)]">{activeModel.name}</h1>
-                    <span className="bg-[var(--bg-interactive-hover)] text-[var(--text-primary)] px-2 py-0.5 text-xs rounded-full">BETA</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="text-sm">Welcome, <span className="font-semibold text-[var(--text-primary)]">{currentUser.name}</span></div>
-                        <button onClick={handleLogout} className="flex items-center gap-2 hover:text-[var(--text-primary)] transition-colors" aria-label="Logout">
-                            <LogoutIcon />
-                        </button>
-                        <div className="relative">
-                        <button ref={notificationsButtonRef} onClick={() => setIsNotificationsOpen(prev => !prev)} className="flex items-center gap-2 hover:text-[var(--text-primary)] transition-colors" aria-label="Toggle notifications">
-                            <BellIcon />
-                            {notifications.length > 0 && (
-                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center border-2 border-[var(--bg-secondary)]">
-                                {notifications.length}
-                            </div>
-                            )}
-                        </button>
-                        <NotificationPanel
-                            isOpen={isNotificationsOpen}
-                            notifications={notifications}
-                            onClose={() => setIsNotificationsOpen(false)}
-                            onClearAll={() => {
-                                setNotifications([]);
-                                setIsNotificationsOpen(false);
-                            }}
-                            triggerRef={notificationsButtonRef}
-                            />
-                        </div>
-                    </div>
-                </header>
-                
-                {messages.length === 0 ? <WelcomeScreen /> : (
-                    <div ref={chatContainerRef} role="log" aria-live="polite" aria-busy={isLoading} className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 mt-4 space-y-6 py-4">
-                        {messages.map((msg) => (
-                        <ChatBubble 
-                            key={msg.id} 
-                            message={msg}
-                            enableTTS={settings.enableTTS}
-                            isSpeaking={currentlySpeakingMessageId === msg.id}
-                            onToggleSpeech={handleToggleSpeech}
-                        />
-                        ))}
-                        {isLoading && messages[messages.length -1].role === MessageRole.USER && (
-                        <div role="status" className="flex items-start gap-3 justify-start">
-                            <div className="w-8 h-8 flex items-center justify-center bg-[var(--bg-interactive)] rounded-full flex-shrink-0 mt-1">
-                                <SarLogoIcon />
-                            </div>
-                            <div className="rounded-2xl px-4 py-3 max-w-md bg-[var(--bg-interactive)] text-[var(--text-muted)] rounded-tl-none">
-                                <div className="flex items-center gap-2 h-5">
-                                    <span className="sr-only">Assistant is typing...</span>
-                                    <span className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0s' }}></span>
-                                    <span className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></span>
-                                    <span className="w-2 h-2 bg-current rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></span>
-                                </div>
-                            </div>
-                        </div>
-                        )}
-                    </div>
-                )}
+          <input type="file" ref={restoreFileInputRef} onChange={handleRestoreAppData} accept=".json" className="hidden" />
+          {isSettingsOpen && <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSettingsChange={setSettings} onClearChat={handleClearChat} triggerRef={settingsButtonRef} activeModel={activeModel} onBackup={handleBackupAppData} onRestore={() => restoreFileInputRef.current?.click()} onReset={handleResetApplication} playSound={playSound} />}
+          {currentUser.role === 'admin' && isAdminPanelOpen && <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} users={users} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} apiKeys={apiKeys} onAddApiKey={handleAddApiKey} onUpdateApiKey={handleUpdateApiKey} onDeleteApiKey={handleDeleteApiKey} logs={logs} onClearLogs={handleClearLogs} />}
+          {isModelModalOpen && <CustomModelModal model={editingModel} onSave={handleSaveModel} onClose={() => setIsModelModalOpen(false)} />}
+          {projectToPreview && <SarProjectCanvas project={projectToPreview} onClose={() => setProjectToPreview(null)} />}
+          {editingImage && <ImageEditor isOpen={!!editingImage} onClose={() => setEditingImage(null)} imageToEdit={editingImage} onSave={handleSaveEditedImage} />}
+          
+          {isGalleryOpen ? <Gallery onClose={() => setIsGalleryOpen(false)} galleryRoot={galleryRoot} onCreateFolder={handleGalleryCreateFolder} onRenameItem={handleGalleryRenameItem} onDeleteItems={handleGalleryDeleteItems} onMoveItems={handleGalleryMoveItems} onChatWithDocument={handleChatWithDocument} onPreviewSarProject={handlePreviewSarProject} onEditImageRequest={handleEditImageRequest} />
+          : isSarStudioOpen ? <SarStudio onClose={() => setIsSarStudioOpen(false)} onImagesGenerated={handleImagesGenerated} onVideoGenerated={handleVideoGenerated} onProjectGenerated={handleProjectGenerated} />
+          : isMarketplaceOpen ? <ModelMarketplace onSelectModel={handleSelectModel} onClose={() => setIsMarketplaceOpen(false)} models={[...defaultModels, ...customModels]} onAddModel={openAddModelModal} onEditModel={openEditModelModal} onDeleteModel={handleDeleteModel} onImportModels={handleImportModels} />
+          : isConnectorsPanelOpen ? <ConnectorsPanel isOpen={isConnectorsPanelOpen} onClose={() => setIsConnectorsPanelOpen(false)} connectors={mockConnectors} connectedConnectorIds={connectedConnectorIds} onToggleConnector={handleToggleConnector} isConnecting={isDriveConnecting} />
+          : (
+            <>
+              <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-purple-500/20 to-transparent pointer-events-none -z-10"></div>
+              <header className="flex items-center justify-between text-[var(--text-muted)]">
+                  <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <h1 className="font-semibold text-[var(--text-primary)]">{activeModel.name}</h1>
+                        <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 text-xs rounded-full">{activeModel.provider}</span>
+                      </div>
+                      <StatusIndicator status={modelStatus} tooltipText={modelStatusMessage} />
+                  </div>
+                  <div className="flex items-center gap-4">
+                        {messages.length > 0 && (
+                          <div className="flex items-center">
+                              {isSearchActive ? (
+                                  <div className="flex items-center gap-2 bg-[var(--bg-interactive)] rounded-full border border-[var(--border-primary)] p-1 animate-fade-in-down">
+                                      <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm px-2 w-36" autoFocus />
+                                      {searchTerm && <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">{searchResults.length > 0 ? `${(currentResultIndex ?? -1) + 1} / ${searchResults.length}` : '0 / 0'}</span>}
+                                      <button onClick={handlePrevResult} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] disabled:opacity-50" aria-label="Previous search result"><ChevronUpIcon className="w-4 h-4" /></button>
+                                      <button onClick={handleNextResult} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] disabled:opacity-50" aria-label="Next search result"><ChevronDownIcon className="w-4 h-4" /></button>
+                                      <button onClick={() => { setIsSearchActive(false); setSearchTerm(''); }} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Close search"><CloseIcon className="w-4 h-4" /></button>
+                                  </div>
+                              ) : ( <button onClick={() => setIsSearchActive(true)} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Search chat history"><SearchIcon /></button> )}
+                          </div>
+                      )}
+                      <div className="text-sm">Welcome, <span className="font-semibold text-[var(--text-primary)]">{currentUser.name}</span></div>
+                      <button onClick={handleLogout} className="flex items-center gap-2 hover:text-[var(--text-primary)]" aria-label="Logout"><LogoutIcon /></button>
+                      <div className="relative">
+                          <button ref={notificationsButtonRef} onClick={() => setIsNotificationsOpen(p => !p)} className="flex items-center gap-2 hover:text-[var(--text-primary)]" aria-label="Toggle notifications">
+                              <BellIcon />
+                              {notifications.length > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center border-2 border-[var(--bg-secondary)]">{notifications.length}</div>}
+                          </button>
+                          <NotificationPanel isOpen={isNotificationsOpen} notifications={notifications} onClose={() => setIsNotificationsOpen(false)} onClearAll={() => { setNotifications([]); setIsNotificationsOpen(false); }} triggerRef={notificationsButtonRef} />
+                      </div>
+                  </div>
+              </header>
+              
+              {messages.length === 0 ? <WelcomeScreen /> : (
+                  <div ref={chatContainerRef} role="log" aria-live="polite" aria-busy={isLoading} className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 mt-4 space-y-6 py-4">
+                      {messages.map((msg) => (
+                          <ChatBubble key={msg.id} message={msg} enableTTS={settings.enableTTS} isSpeaking={currentlySpeakingMessageId === msg.id} onToggleSpeech={handleToggleSpeech} onContextMenu={handleContextMenu} searchTerm={isSearchActive ? searchTerm : null} isHighlighted={currentResultIndex !== null && searchResults[currentResultIndex] === msg.id} />
+                      ))}
+                      {isLoading && messages.length > 0 && messages[messages.length - 1].role === MessageRole.USER && (
+                      <div role="status" className="flex items-start gap-3 justify-start">
+                          <div className="w-8 h-8 flex items-center justify-center bg-[var(--bg-interactive)] rounded-full flex-shrink-0 mt-1"><SarLogoIcon /></div>
+                          <div className="rounded-2xl px-4 py-3 max-w-md bg-[var(--bg-interactive)] text-[var(--text-muted)] rounded-tl-none">
+                              <div className="flex items-center gap-2 h-5 bounce-dot"><span className="sr-only">Typing...</span><span className="w-2 h-2 bg-current rounded-full"></span><span className="w-2 h-2 bg-current rounded-full"></span><span className="w-2 h-2 bg-current rounded-full"></span></div>
+                          </div>
+                      </div>
+                      )}
+                  </div>
+              )}
 
-                <div className="mt-auto pt-4">
-                    {messages.length === 0 && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                        {suggestions.map((suggestion, index) => (
-                        <SuggestionChip key={index} text={suggestion.text} icon={suggestion.icon} onClick={handleSendMessage} />
-                        ))}
-                    </div>
-                    )}
-                    {attachment && (
-                        <div className="mb-2 w-28 h-28 p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative">
-                            <img src={attachment.url} alt="Attachment preview" className="w-full h-full object-cover rounded-md" />
-                            <button
-                                onClick={handleRemoveAttachment}
-                                aria-label="Remove attachment"
-                                className="absolute -top-2 -right-2 bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1 border border-[var(--border-primary)]"
-                            >
-                                <CloseIcon className="w-4 h-4" />
-                            </button>
-                        </div>
-                    )}
-                    <form onSubmit={handleFormSubmit} className="mt-4 bg-black/20 border border-[var(--border-primary)] rounded-2xl flex items-center p-2 pl-6 focus-within:border-purple-500 transition-colors">
-                    <input
-                        type="text"
-                        placeholder={isRecording ? "Listening..." : "Enter Message"}
-                        className="flex-1 bg-transparent focus:outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] text-lg"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        disabled={isLoading}
-                        aria-label="Chat input"
-                    />
-                    <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileSelect}
-                            className="hidden"
-                            accept="image/*"
-                        />
-                        <button type="button" onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors" aria-label="Add attachment">
-                            <PaperclipIcon />
-                        </button>
-                    <button type="button" onClick={handleMicClick} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors" aria-label={isRecording ? 'Stop recording' : 'Start recording'}>
-                        <MicrophoneIcon className={isRecording ? 'text-purple-500 animate-pulse' : ''} />
-                    </button>
-                    <button type="submit" disabled={!(inputValue.trim() || attachment) || isLoading} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors disabled:opacity-50 disabled:hover:text-[var(--text-muted)]" aria-label="Send message">
-                        <SendIcon />
-                    </button>
-                    </form>
-                </div>
-             </>
-            )}
+              <div className="mt-auto pt-4">
+                  {messages.length === 0 && !activeDocument && (
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {suggestions.map((s, i) => <SuggestionChip key={i} text={s.text} icon={s.icon} onClick={(text) => {
+                          if (text === 'Search Web') { setInputValue('/web '); textareaRef.current?.focus(); }
+                          else if (text === 'Generate image') { openSarStudio(); }
+                          else { handleSendMessage(text); }
+                        }} />)}
+                  </div>
+                  )}
+                  {activeDocument && (
+                      <div className="mb-2 max-w-md p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative flex items-center gap-3">
+                          <div className="w-10 h-10 bg-[var(--bg-tertiary)] rounded-md flex items-center justify-center flex-shrink-0"><FileTextIcon className="w-6 h-6 text-[var(--text-muted)]" /></div>
+                          <div className="text-sm overflow-hidden flex-1"><p className="text-[var(--text-muted)] text-xs">Analyzing Document</p><p className="text-[var(--text-primary)] font-medium truncate">{activeDocument.name}</p></div>
+                          <button onClick={() => setActiveDocument(null)} aria-label="Stop analyzing document" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1"><CloseIcon className="w-4 h-4" /></button>
+                      </div>
+                  )}
+                  {attachment && (
+                      <div className="mb-2 max-w-sm p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative flex items-center gap-3">
+                          {attachment.file.type.startsWith('image/') ? ( <img src={attachment.url} alt="Attachment preview" className="w-16 h-16 object-cover rounded-md flex-shrink-0" /> ) : ( <div className="w-16 h-16 bg-[var(--bg-tertiary)] rounded-md flex items-center justify-center flex-shrink-0"><FileTextIcon className="w-8 h-8 text-[var(--text-muted)]" /></div> )}
+                          <div className="text-sm overflow-hidden flex-1"><p className="text-[var(--text-primary)] font-medium truncate">{attachment.file.name}</p><p className="text-[var(--text-muted)]">{formatFileSize(attachment.file.size)}</p></div>
+                          <button onClick={() => setAttachment(null)} aria-label="Remove attachment" className="absolute -top-2 -right-2 bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1 border border-[var(--border-primary)]"><CloseIcon className="w-4 h-4" /></button>
+                      </div>
+                  )}
+                  {messages.length > 0 && (
+                      <div className="flex justify-end text-xs text-[var(--text-muted)] px-3 pb-2">
+                          <span>Session Tokens: {sessionTokenCount.prompt + sessionTokenCount.response}</span>
+                      </div>
+                  )}
+                  <form onSubmit={(e) => {e.preventDefault(); handleSendMessage(inputValue);}} className="bg-black/20 border border-[var(--border-primary)] rounded-2xl flex items-end p-2 pl-6 focus-within:border-purple-500 transition-colors">
+                      <textarea ref={textareaRef} rows={1} placeholder={isRecording ? "Listening..." : (activeDocument ? `Ask about ${activeDocument.name}...` : "Enter Message")} className="flex-1 bg-transparent focus:outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] text-lg resize-none overflow-y-auto max-h-40 custom-scrollbar" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} disabled={isLoading} aria-label="Chat input" />
+                      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
+                      <button type="button" onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Add attachment"><PaperclipIcon /></button>
+                      <button type="button" onClick={handleMicClick} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label={isRecording ? 'Stop recording' : 'Start recording'}><MicrophoneIcon className={isRecording ? 'text-purple-500 animate-pulse' : ''} /></button>
+                      <button type="submit" disabled={!(inputValue.trim() || attachment) || isLoading || modelStatus !== 'online'} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50" aria-label="Send message"><SendIcon /></button>
+                  </form>
+              </div>
+            </>
+          )}
         </main>
       </div>
+      {contextMenu.isOpen && ( <ContextMenu isOpen={contextMenu.isOpen} position={contextMenu.position} options={contextMenuOptions} onClose={handleCloseContextMenu} /> )}
     </div>
   );
 };

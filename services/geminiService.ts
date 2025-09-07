@@ -1,6 +1,7 @@
 
-// FIX: Replace deprecated `GenerationConfig` with `GenerateContentConfig` as per the coding guidelines.
-import { GoogleGenAI, Chat, GenerateContentConfig, Type } from "@google/genai";
+
+// Fix: Remove deprecated GenerateContentConfig from import
+import { GoogleGenAI, Chat, Type } from "@google/genai";
 import { ChartData } from "../types";
 
 if (!process.env.API_KEY) {
@@ -75,7 +76,8 @@ export async function generateChartData(prompt: string): Promise<ChartData> {
 }
 
 
-export function createChatSession(config?: Partial<GenerateContentConfig>, systemInstruction?: string): Chat {
+// Fix: Remove deprecated GenerateContentConfig from function signature
+export function createChatSession(config?: object, systemInstruction?: string): Chat {
   const model = 'gemini-2.5-flash';
   const instruction = systemInstruction || 'You are SAR LEGACY, a helpful and friendly AI assistant. Provide clear, concise, and helpful responses. Your personality is professional yet approachable. Do not respond with JSON for chart data unless specifically asked via a function call.';
   

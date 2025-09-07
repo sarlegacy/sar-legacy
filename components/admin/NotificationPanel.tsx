@@ -1,6 +1,8 @@
 
+
+
 import React, { useRef, useEffect } from 'react';
-import { Notification } from '../types';
+import { Notification } from '../../types.ts';
 
 interface NotificationPanelProps {
   isOpen: boolean;

@@ -3,7 +3,7 @@ import {
   ResponsiveContainer, BarChart, LineChart, PieChart, CartesianGrid,
   XAxis, YAxis, Tooltip, Legend, Bar, Line, Pie, Cell
 } from 'recharts';
-import { ChartData } from '../types';
+import { ChartData } from '../../types.ts';
 
 interface ChartRendererProps {
   chartData: ChartData;
