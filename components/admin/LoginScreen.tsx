@@ -39,7 +39,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
         <div className="absolute inset-0 bg-black/50 -z-[1]"></div>
       
         <div className="w-full max-w-sm">
-            <form onSubmit={handleSubmit} className="bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-2xl p-8 shadow-2xl animate-fade-in-down">
+            <form onSubmit={handleSubmit} className="bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-2xl p-6 sm:p-8 shadow-2xl animate-scale-in-center">
                 <div className="text-center mb-10">
                     <SarLegacyLogo className="w-16 h-16 mx-auto mb-4" />
                     <h1 className="text-2xl font-bold text-[var(--text-primary)]">Welcome Back</h1>

@@ -239,6 +239,14 @@ export const ShieldIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
+export const ShieldCheckIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+        <path d="m9 12 2 2 4-4"></path>
+    </svg>
+);
+
+
 export const LogoutIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg {...props} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -377,6 +385,14 @@ export const AnthropicIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) =>
     <svg {...props} viewBox="0 0 24 24" fill="currentColor" focusable="false" aria-hidden="true">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
         <path d="M12 12m-5 0a5 5 0 1 0 10 0a5 5 0 1 0-10 0" />
+    </svg>
+);
+
+export const DeepseekIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" focusable="false" aria-hidden="true">
+        <path d="M12.232 2.872a.5.5 0 00-.464 0L3.536 7.64a.5.5 0 00-.268.434v8.852a.5.5 0 00.268.434l8.232 4.768a.5.5 0 00.464 0l8.232-4.768a.5.5 0 00.268-.434V8.073a.5.5 0 00-.268-.434L12.232 2.872z"/>
+        <path d="M12 7.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9zm0 8a3.5 3.5 0 110-7 3.5 3.5 0 010 7z" strokeWidth="1"/>
+        <path d="M12 11.5a.5.5 0 00-.5.5v.5h1v-.5a.5.5 0 00-.5-.5z" strokeWidth="1" fill="currentColor"/>
     </svg>
 );
 
@@ -543,5 +559,43 @@ export const LayoutDashboardIcon: React.FC<React.SVGProps<SVGSVGElement>> = (pro
         <rect width="7" height="5" x="14" y="3" rx="1"/>
         <rect width="7" height="9" x="14" y="12" rx="1"/>
         <rect width="7" height="5" x="3" y="16" rx="1"/>
+    </svg>
+);
+
+export const UniversalAccessIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
+        <path d="M12 18L12 18" /><path d="M12 14L12 14" /><path d="M15.5 13.5C15.5 11.5 18 11.5 18 9.5C18 7.5 15 7.5 15 5.5" /><path d="M8.5 13.5C8.5 11.5 6 11.5 6 9.5C6 7.5 9 7.5 9 5.5" /><path d="M12 4a2.5 2.5 0 0 1 0 5a2.5 2.5 0 0 1 0-5z" /><path d="M4.5 9.5a2 2 0 1 0 0-5" /><path d="M19.5 9.5a2 2 0 1 0 0-5" /><path d="M12 18c-3 1-5 1-7 2" /><path d="M19 20c-2-1-4-1-7-2" />
+    </svg>
+);
+
+export const DatabaseIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
+        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+    </svg>
+);
+
+export const ArchiveBoxIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
+        <path d="M21 8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/>
+        <path d="M10 12h4"/>
+        <path d="M21 3H3v5h18V3z"/>
+        <path d="M12 12v5m-2.5-2.5L12 17l2.5-2.5"/>
+    </svg>
+);
+
+export const CameraIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+        <circle cx="12" cy="13" r="4"></circle>
+    </svg>
+);
+
+export const MenuIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+    <svg {...props} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" focusable="false" aria-hidden="true">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
     </svg>
 );

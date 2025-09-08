@@ -41,19 +41,16 @@ declare namespace gapi {
 
 import { AppData } from '../types.ts';
 
-// ===================================================================================
-//
-// !!! ACTION REQUIRED !!!
-// TO FIX THE "Error 400: invalid_request", YOU MUST REPLACE THE PLACEHOLDER BELOW.
-//
-// 1. Go to https://console.cloud.google.com/apis/credentials
-// 2. Create an "OAuth 2.0 Client ID" for a "Web application".
-// 3. Under "Authorized JavaScript origins", add the URL where you are running this app.
-//    (e.g., http://localhost:3000 or the production URL).
-// 4. Copy the generated "Client ID" and paste it below.
-//
-// ===================================================================================
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+// Fix: The GOOGLE_CLIENT_ID environment variable is not set in this environment.
+// A placeholder is provided to prevent initialization errors.
+// For a functional Google Drive integration, a developer would need to replace this
+// with an actual Client ID, ideally through a build process that handles environment variables.
+const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+
+if (CLIENT_ID === 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com') {
+    console.warn("Warning: The GOOGLE_CLIENT_ID environment variable is not set. Using a placeholder for initialization. Google Drive integration will not be functional until a valid ID is provided.");
+}
+
 const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
 const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 const APP_DATA_FILE_NAME = 'sar-legacy-ai-data.json';

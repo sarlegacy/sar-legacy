@@ -65,6 +65,11 @@ export interface SoundSettings {
     voiceRecognition: boolean;
 }
 
+export interface PrivacySettings {
+    autoClearOnLogout: boolean;
+    sessionTimeoutMinutes: number; // 0 for never
+}
+
 export interface AppSettings {
     theme: Theme;
     modelConfig: ModelConfig;
@@ -78,6 +83,15 @@ export interface AppSettings {
     exportFormat: 'markdown' | 'json' | 'text';
     systemInstruction?: string;
     soundSettings: SoundSettings;
+    privacySettings: PrivacySettings;
+    openLastUsedPanel: boolean;
+    userBubbleAlignment: 'left' | 'right';
+    showSuggestionChips: boolean;
+    showTimestamps: boolean;
+    webSearchDefault: boolean;
+    notificationPosition: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
+    showStatusIndicator: boolean;
+    showTokenCount: boolean;
 }
 
 export interface User {
@@ -87,9 +101,10 @@ export interface User {
   role: 'admin' | 'user';
   status: 'active' | 'inactive';
   lastLogin: string;
+  avatar?: string; // Data URL for the avatar image
 }
 
-export type AIProvider = 'SAR LEGACY' | 'OpenAI' | 'Anthropic';
+export type AIProvider = 'SAR LEGACY' | 'OpenAI' | 'Anthropic' | 'Deepseek';
 
 export interface ApiKey {
   id: string;
@@ -100,6 +115,11 @@ export interface ApiKey {
   requestCount: number;
   tokenUsage: number;
   lastUsed: string | null;
+  createdAt: string;
+  tokenLimit?: number;
+  healthCheckStatus?: 'valid' | 'invalid' | 'checking' | null;
+  healthCheckReport?: string;
+  usageAnalysis?: string;
 }
 
 export interface CustomModel {
@@ -152,7 +172,7 @@ export interface LogEntry {
 export interface ProjectPlan {
   projectName: string;
   technologyStack: string[];
-  featureBreakdown: string[];
+  featureBreakdown:string[];
   fileList: string[];
 }
 
@@ -180,3 +200,6 @@ export interface GeneratedImageData {
     prompt: string;
     aspectRatio: AspectRatio;
 }
+
+export type FrameRate = 24 | 30;
+export type MotionBlur = number; // Represents intensity from 0-10

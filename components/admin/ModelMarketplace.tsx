@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { CustomModel } from '../../types.ts';
-import { CloseIcon, UserPlusIcon, EditIcon, TrashIcon, OpenAiIcon, AnthropicIcon, SarLogoIcon, DownloadIcon } from './icons.tsx';
+// FIX: Add MenuIcon to imports for mobile navigation.
+import { CloseIcon, UserPlusIcon, EditIcon, TrashIcon, OpenAiIcon, AnthropicIcon, SarLogoIcon, DownloadIcon, MenuIcon } from './icons.tsx';
 
 interface ModelMarketplaceProps {
   models: CustomModel[];
@@ -10,6 +11,8 @@ interface ModelMarketplaceProps {
   onEditModel: (model: CustomModel) => void;
   onDeleteModel: (modelId: string) => void;
   onImportModels: (models: any[]) => void;
+  // FIX: Add onMenuClick prop for mobile navigation.
+  onMenuClick: () => void;
 }
 
 interface ModelCardProps {
@@ -39,7 +42,7 @@ const ModelCard: React.FC<ModelCardProps> = React.memo(({ model, onSelect, onEdi
     const handleDelete = useCallback((e: React.MouseEvent) => { e.stopPropagation(); onDelete(model); }, [model, onDelete]);
 
     return (
-        <div className="bg-[var(--bg-interactive)] border border-transparent hover:border-[var(--border-primary)] rounded-2xl p-6 flex flex-col items-start text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl relative group">
+        <div className="bg-[var(--bg-interactive)] border border-transparent hover:border-[var(--border-primary)] rounded-2xl p-6 flex flex-col items-start text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl relative group h-full active:scale-95">
             <button onClick={handleSelect} className="w-full h-full text-left flex flex-col items-start">
                 <div className="bg-gradient-to-br from-purple-600 to-indigo-700 p-3 rounded-xl mb-4 text-white">
                     {model.icon}
@@ -79,7 +82,7 @@ const FilterChip: React.FC<FilterChipProps> = React.memo(({ text, active, onClic
   return (
     <button
       onClick={handleClick}
-      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap active:scale-95 ${
         active
           ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
           : 'bg-[var(--bg-interactive)] text-[var(--text-muted)] hover:bg-[var(--bg-interactive-hover)] hover:text-[var(--text-primary)]'
@@ -91,7 +94,7 @@ const FilterChip: React.FC<FilterChipProps> = React.memo(({ text, active, onClic
 });
 
 
-export const ModelMarketplace: React.FC<ModelMarketplaceProps> = ({ models, onSelectModel, onClose, onAddModel, onEditModel, onDeleteModel, onImportModels }) => {
+export const ModelMarketplace: React.FC<ModelMarketplaceProps> = ({ models, onSelectModel, onClose, onAddModel, onEditModel, onDeleteModel, onImportModels, onMenuClick }) => {
     const [activeFilter, setActiveFilter] = useState('All');
     const fileInputRef = useRef<HTMLInputElement>(null);
     
@@ -154,11 +157,16 @@ export const ModelMarketplace: React.FC<ModelMarketplaceProps> = ({ models, onSe
     };
 
     return (
-        <div className="flex flex-col h-full animate-fade-in-down">
+        <div className="flex flex-col h-full animate-scale-in-center">
             <header className="flex items-center justify-between pb-4 border-b border-[var(--border-primary)] mb-6 flex-shrink-0">
-                <div>
-                    <h2 className="text-2xl font-bold text-[var(--text-primary)]">Model Marketplace</h2>
-                    <p className="text-[var(--text-muted)]">Select or create an AI assistant for your task</p>
+                <div className="flex items-center gap-3">
+                    <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                        <MenuIcon />
+                    </button>
+                    <div>
+                        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Model Marketplace</h2>
+                        <p className="text-[var(--text-muted)]">Select or create an AI assistant for your task</p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     <input
@@ -180,6 +188,10 @@ export const ModelMarketplace: React.FC<ModelMarketplaceProps> = ({ models, onSe
                         <UserPlusIcon />
                         Add Custom Model
                     </button>
+                    {/* FIX: Moved close button into header for consistency */}
+                    <button onClick={onClose} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Close marketplace">
+                        <CloseIcon className="w-6 h-6" />
+                    </button>
                 </div>
             </header>
             
@@ -189,22 +201,20 @@ export const ModelMarketplace: React.FC<ModelMarketplaceProps> = ({ models, onSe
                         <FilterChip key={category} text={category} active={activeFilter === category} onClick={handleFilterClick} />
                     ))}
                 </div>
-                 <button onClick={onClose} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] ml-4" aria-label="Close marketplace">
-                    <CloseIcon className="w-6 h-6" />
-                </button>
             </div>
 
 
             <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 mt-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredModels.map(model => (
-                        <ModelCard 
-                            key={model.id} 
-                            model={model} 
-                            onSelect={onSelectModel}
-                            onEdit={onEditModel}
-                            onDelete={handleDeleteModelWithConfirm}
-                        />
+                    {filteredModels.map((model, index) => (
+                        <div key={model.id} className="animate-fade-in-up" style={{ animationDelay: `${index * 50}ms` }}>
+                            <ModelCard 
+                                model={model} 
+                                onSelect={onSelectModel}
+                                onEdit={onEditModel}
+                                onDelete={handleDeleteModelWithConfirm}
+                            />
+                        </div>
                     ))}
                 </div>
             </div>

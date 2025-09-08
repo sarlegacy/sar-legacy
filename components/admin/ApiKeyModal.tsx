@@ -5,7 +5,7 @@ import { thirdPartyModels } from '../../data/thirdPartyModels.ts';
 
 interface ApiKeyModalProps {
   apiKey: ApiKey | null;
-  onSave: (keyData: Omit<ApiKey, 'id' | 'requestCount' | 'tokenUsage' | 'lastUsed'> | ApiKey) => void;
+  onSave: (keyData: Omit<ApiKey, 'id' | 'requestCount' | 'tokenUsage' | 'lastUsed' | 'createdAt' | 'tokenLimit'> | ApiKey) => void;
   onClose: () => void;
 }
 
@@ -14,6 +14,13 @@ const initialFormData = {
   provider: 'OpenAI' as AIProvider,
   key: '',
   status: 'active' as 'active' | 'inactive',
+};
+
+const providerLinks: Record<AIProvider, string> = {
+    'OpenAI': 'https://platform.openai.com/api-keys',
+    'Anthropic': 'https://console.anthropic.com/settings/keys',
+    'Deepseek': 'https://platform.deepseek.com/api_keys',
+    'SAR LEGACY': '#',
 };
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ apiKey, onClose, onSave }) => {
@@ -75,6 +82,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ apiKey, onClose, onSav
                     <option key={provider} value={provider}>{provider}</option>
                 ))}
               </select>
+               <a href={providerLinks[formData.provider]} target="_blank" rel="noopener noreferrer" className="text-xs text-purple-400 hover:underline mt-1 inline-block">
+                Get your {formData.provider} API key here
+              </a>
             </div>
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-[var(--text-muted)] mb-1">Key Name</label>
@@ -82,7 +92,8 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ apiKey, onClose, onSav
             </div>
             <div>
               <label htmlFor="key" className="block text-sm font-medium text-[var(--text-muted)] mb-1">API Key</label>
-              <input type="password" name="key" id="key" value={formData.key} onChange={handleChange} required placeholder="sk-..." className="w-full bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500 transition-colors" />
+              <input type="password" name="key" id="key" value={formData.key} onChange={handleChange} required placeholder="sk-..." disabled={!!apiKey} className="w-full bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-purple-500 transition-colors disabled:opacity-50" />
+              {apiKey && <p className="text-xs text-[var(--text-muted)] mt-1">For security, API keys cannot be edited. Please create a new key if you need to change it.</p>}
             </div>
             <div>
               <label htmlFor="status" className="block text-sm font-medium text-[var(--text-muted)] mb-1">Status</label>

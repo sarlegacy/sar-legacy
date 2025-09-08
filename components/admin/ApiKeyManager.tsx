@@ -8,9 +8,11 @@ interface ApiKeyManagerProps {
   onAddKey: (key: Omit<ApiKey, 'id' | 'requestCount' | 'tokenUsage' | 'lastUsed'>) => void;
   onUpdateKey: (key: ApiKey) => void;
   onDeleteKey: (keyId: string) => void;
+  // Fix: Add missing onDeleteApiKeys prop to satisfy ApiKeyTable's requirements.
+  onDeleteApiKeys: (keyIds: string[]) => void;
 }
 
-export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ keys, onAddKey, onUpdateKey, onDeleteKey }) => {
+export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ keys, onAddKey, onUpdateKey, onDeleteKey, onDeleteApiKeys }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
 
@@ -38,8 +40,10 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ keys, onAddKey, on
       <ApiKeyTable
         keys={keys}
         onAddKey={handleOpenAddModal}
-        onEditKey={handleOpenEditModal}
+        // Fix: Renamed 'onEditKey' to 'onManageKey' to match the ApiKeyTableProps interface.
+        onManageKey={handleOpenEditModal}
         onDeleteKey={onDeleteKey}
+        onDeleteApiKeys={onDeleteApiKeys}
         onUpdateKeyStatus={(key, status) => onUpdateKey({ ...key, status })}
       />
       {isModalOpen && (

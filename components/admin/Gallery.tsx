@@ -3,13 +3,14 @@ import { GalleryItem, GalleryItemType } from '../../types.ts';
 import {
     CloseIcon, ChevronLeftIcon, ChevronRightIcon, FolderIcon, PlayIcon, FileTextIcon,
     DownloadIcon, MoreIcon, SearchIcon, FolderPlusIcon, TrashIcon, CheckCircleIcon, EditIcon,
-    SparkleIcon, WriteIcon, EyeIcon, GenerateIcon
+    SparkleIcon, WriteIcon, EyeIcon, GenerateIcon, MenuIcon
 } from './icons.tsx';
 import { ContextMenu } from './ContextMenu.tsx';
 import { MoveItemsModal } from './MoveItemsModal.tsx';
 
 interface GalleryProps {
     onClose: () => void;
+    onMenuClick: () => void;
     galleryRoot: GalleryItem;
     onCreateFolder: (parentId: string, folderName: string) => void;
     onRenameItem: (itemId: string, newName: string) => void;
@@ -85,7 +86,7 @@ const Lightbox: React.FC<{
                         <ChevronRightIcon className="w-8 h-8" />
                     </button>
                 </>}
-                <div className="max-w-6xl max-h-[90vh] w-full h-auto flex flex-col lg:flex-row bg-[var(--bg-secondary)] rounded-2xl overflow-hidden shadow-2xl animate-fade-in-down">
+                <div className="max-w-6xl max-h-[90vh] w-full h-auto flex flex-col lg:flex-row bg-[var(--bg-secondary)] rounded-2xl overflow-hidden shadow-2xl animate-scale-in-center">
                     <div className={`flex-shrink-0 flex-grow flex items-center justify-center bg-black/50 ${contentContainerClass}`}>
                         {renderContent()}
                     </div>
@@ -168,7 +169,7 @@ const GalleryItemCard: React.FC<{
     };
     
     return (
-        <div className={`group relative break-inside-avoid mb-4 bg-[var(--bg-interactive)] rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 border ${isSelected ? 'border-purple-500' : 'border-transparent hover:border-[var(--border-primary)]'}`}>
+        <div className={`group relative bg-[var(--bg-interactive)] rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1 border active:scale-95 ${isSelected ? 'border-purple-500' : 'border-transparent hover:border-[var(--border-primary)]'}`}>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10 pointer-events-none" />
             <button onClick={() => onToggleSelect(item.id, !isSelected)} aria-label={`Select ${item.name}`} className={`absolute top-2 left-2 z-20 p-1 rounded-full transition-opacity ${isSelected ? 'opacity-100 bg-purple-600 text-white' : 'opacity-0 group-hover:opacity-100 bg-black/50 text-white hover:bg-black/70'}`}>
                 <CheckCircleIcon className="w-5 h-5" />
@@ -197,7 +198,7 @@ const GalleryItemCard: React.FC<{
     );
 };
 
-export const Gallery: React.FC<GalleryProps> = ({ onClose, galleryRoot, onCreateFolder, onRenameItem, onDeleteItems, onMoveItems, onChatWithDocument, onPreviewSarProject, onEditImageRequest }) => {
+export const Gallery: React.FC<GalleryProps> = ({ onClose, onMenuClick, galleryRoot, onCreateFolder, onRenameItem, onDeleteItems, onMoveItems, onChatWithDocument, onPreviewSarProject, onEditImageRequest }) => {
     const [currentPath, setCurrentPath] = useState<GalleryItem[]>([galleryRoot]);
     const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -220,7 +221,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onClose, galleryRoot, onCreate
         setSelectedItemIds(prev => isSelected ? [...prev, itemId] : prev.filter(id => id !== itemId));
     };
 
-    const handleCreateFolder = () => {
+    const handleCreateFolder = useCallback(() => {
         const newFolderName = 'Untitled Folder';
         let finalName = newFolderName;
         let counter = 2;
@@ -228,7 +229,7 @@ export const Gallery: React.FC<GalleryProps> = ({ onClose, galleryRoot, onCreate
             finalName = `${newFolderName} ${counter++}`;
         }
         onCreateFolder(currentFolder.id, finalName);
-    };
+    }, [itemsInCurrentFolder, onCreateFolder, currentFolder.id]);
 
     const handleOpenContextMenu = (event: React.MouseEvent, item: GalleryItem) => {
         event.preventDefault();
@@ -294,29 +295,37 @@ export const Gallery: React.FC<GalleryProps> = ({ onClose, galleryRoot, onCreate
     }, [contextMenu.item, onDeleteItems, onChatWithDocument, onPreviewSarProject]);
   
     return (
-        <div className="flex flex-col h-full animate-fade-in-down">
+        <div className="flex flex-col h-full animate-scale-in-center">
             <header className="flex items-center justify-between pb-4 border-b border-[var(--border-primary)] mb-6 flex-shrink-0">
-                <div>
-                    <h2 className="text-2xl font-bold text-[var(--text-primary)]">Gallery</h2>
-                    <div className="flex items-center gap-2 text-sm text-[var(--text-muted)] mt-1 flex-wrap">
-                        {currentPath.map((folder, index) => (
-                            <React.Fragment key={folder.id}>
-                                {index > 0 && <ChevronRightIcon className="w-4 h-4 flex-shrink-0" />}
-                                <button onClick={() => handleBreadcrumbClick(index)} disabled={index === currentPath.length - 1} className="hover:text-[var(--text-primary)] disabled:font-semibold disabled:text-[var(--text-primary)] disabled:cursor-default">{folder.name}</button>
-                            </React.Fragment>
-                        ))}
+                <div className="flex items-center gap-2">
+                     <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                        <MenuIcon />
+                    </button>
+                    <div className="flex-1">
+                        <h2 className="text-2xl font-bold text-[var(--text-primary)]">Gallery</h2>
+                        <div className="flex items-center gap-2 text-sm text-[var(--text-muted)] mt-1 flex-wrap">
+                            {currentPath.map((folder, index) => (
+                                <React.Fragment key={folder.id}>
+                                    {index > 0 && <ChevronRightIcon className="w-4 h-4 flex-shrink-0" />}
+                                    <button onClick={() => handleBreadcrumbClick(index)} disabled={index === currentPath.length - 1} className="hover:text-[var(--text-primary)] disabled:font-semibold disabled:text-[var(--text-primary)] disabled:cursor-default">{folder.name}</button>
+                                </React.Fragment>
+                            ))}
+                        </div>
                     </div>
                 </div>
                 <button onClick={onClose} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] ml-4" aria-label="Close gallery"><CloseIcon className="w-6 h-6" /></button>
             </header>
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-4 flex-shrink-0">
-                 <div className="flex items-center gap-2 w-full">
-                    <button onClick={handleCreateFolder} className="flex items-center gap-2 bg-purple-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap"><FolderPlusIcon />New Folder</button>
-                    <div className="relative w-full md:max-w-xs">
-                        <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
-                        <input type="text" placeholder="Search in this folder..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-purple-500 transition-colors" />
-                    </div>
+                <div className="relative w-full md:max-w-xs">
+                    <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-muted)]" />
+                    <input type="text" placeholder="Search in this folder..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-lg pl-10 pr-4 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-purple-500 transition-colors" />
+                </div>
+                <div className="flex items-center gap-2">
+                    <button onClick={handleCreateFolder} className="flex items-center gap-2 bg-purple-600 text-white font-medium py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors whitespace-nowrap">
+                        <FolderPlusIcon />
+                        New Folder
+                    </button>
                 </div>
             </div>
             
@@ -333,32 +342,33 @@ export const Gallery: React.FC<GalleryProps> = ({ onClose, galleryRoot, onCreate
             <div className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 mt-2">
                 {filteredItems.length > 0 ? (
                     <div className="columns-2 md:columns-3 lg:columns-4 xl:columns-5 gap-4">
-                        {filteredItems.map(item => (
-                            <GalleryItemCard
-                                key={item.id}
-                                item={item}
-                                isSelected={selectedItemIds.includes(item.id)}
-                                isRenaming={renamingItemId === item.id}
-                                onToggleSelect={handleToggleSelect}
-                                onStartRename={() => setRenamingItemId(item.id)}
-                                onCommitRename={(newName) => {
-                                    if (newName.trim() && newName !== item.name) {
-                                        onRenameItem(item.id, newName.trim());
-                                    }
-                                    setRenamingItemId(null);
-                                }}
-                                onCancelRename={() => setRenamingItemId(null)}
-                                onOpen={() => {
-                                    if (item.type === 'folder') {
-                                        setCurrentPath(prev => [...prev, item]);
-                                    } else if (item.type === 'sar_project') {
-                                        onPreviewSarProject(item);
-                                    } else {
-                                        openLightbox(item);
-                                    }
-                                }}
-                                onOpenContextMenu={(e) => handleOpenContextMenu(e, item)}
-                            />
+                        {filteredItems.map((item, index) => (
+                            <div key={item.id} className="animate-fade-in-up break-inside-avoid mb-4" style={{ animationDelay: `${index * 40}ms` }}>
+                                <GalleryItemCard
+                                    item={item}
+                                    isSelected={selectedItemIds.includes(item.id)}
+                                    isRenaming={renamingItemId === item.id}
+                                    onToggleSelect={handleToggleSelect}
+                                    onStartRename={() => setRenamingItemId(item.id)}
+                                    onCommitRename={(newName) => {
+                                        if (newName.trim() && newName !== item.name) {
+                                            onRenameItem(item.id, newName.trim());
+                                        }
+                                        setRenamingItemId(null);
+                                    }}
+                                    onCancelRename={() => setRenamingItemId(null)}
+                                    onOpen={() => {
+                                        if (item.type === 'folder') {
+                                            setCurrentPath(prev => [...prev, item]);
+                                        } else if (item.type === 'sar_project') {
+                                            onPreviewSarProject(item);
+                                        } else {
+                                            openLightbox(item);
+                                        }
+                                    }}
+                                    onOpenContextMenu={(e) => handleOpenContextMenu(e, item)}
+                                />
+                            </div>
                         ))}
                     </div>
                 ) : (

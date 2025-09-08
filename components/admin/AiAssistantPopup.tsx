@@ -77,7 +77,7 @@ export const AiAssistantPopup: React.FC<AiAssistantPopupProps> = ({ projectPlan,
     }
 
     return (
-        <div className="fixed bottom-8 right-8 z-[100] w-96 h-[32rem] bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--border-primary)] rounded-2xl shadow-2xl flex flex-col animate-fade-in-down">
+        <div className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 z-[100] w-[calc(100%-2rem)] max-w-sm h-[70vh] max-h-[32rem] bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--border-primary)] rounded-2xl shadow-2xl flex flex-col animate-fade-in-down">
             <header className="flex items-center justify-between p-4 border-b border-[var(--border-primary)] flex-shrink-0">
                 <div className="flex items-center gap-2">
                     <SparkleIcon className="w-5 h-5 text-purple-400" />
@@ -97,35 +97,28 @@ export const AiAssistantPopup: React.FC<AiAssistantPopupProps> = ({ projectPlan,
                             msg.role === 'system' ? 'bg-transparent text-center text-xs text-[var(--text-muted)] w-full' :
                             'bg-[var(--bg-interactive)] rounded-bl-none'
                         }`}>
-                           <p className="whitespace-pre-wrap">{msg.text}</p>
+                           <p className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: msg.text.replace(/`([^`]+)`/g, '<code class="bg-black/20 text-purple-300 px-1 py-0.5 rounded text-xs">\$1</code>') }} />
                         </div>
                     </div>
                 ))}
                 {isLoading && (
-                    <div className="flex items-start gap-2">
-                         <div className="w-7 h-7 flex-shrink-0 bg-[var(--bg-interactive)] rounded-full flex items-center justify-center mt-1"><SarLogoIcon className="w-4 h-4"/></div>
-                         <div className="px-3 py-2 rounded-lg bg-[var(--bg-interactive)] rounded-bl-none text-sm text-[var(--text-muted)]">
-                            Thinking...
-                         </div>
+                     <div className="flex items-start gap-2">
+                        <div className="w-7 h-7 flex-shrink-0 bg-[var(--bg-interactive)] rounded-full flex items-center justify-center mt-1"><SarLogoIcon className="w-4 h-4 animate-spin"/></div>
+                        <div className="px-3 py-2 rounded-lg max-w-xs text-sm bg-[var(--bg-interactive)] rounded-bl-none text-[var(--text-muted)]">
+                           Thinking...
+                        </div>
                     </div>
                 )}
             </div>
 
-            <div className="p-4 border-t border-[var(--border-primary)] flex-shrink-0">
+            <footer className="p-4 border-t border-[var(--border-primary)] flex-shrink-0">
                 <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="flex items-center gap-2">
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="e.g., Change header to blue"
-                        className="flex-1 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-purple-500"
-                        disabled={isLoading}
-                    />
-                    <button type="submit" disabled={!inputValue.trim() || isLoading} className="p-2 rounded-full bg-purple-600 text-white disabled:bg-gray-500">
+                    <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="e.g., Change the theme to light blue" className="w-full bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-purple-500 transition-colors" />
+                    <button type="submit" disabled={!inputValue.trim() || isLoading} className="p-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:bg-gray-500">
                         <SendIcon className="w-5 h-5" />
                     </button>
                 </form>
-            </div>
+            </footer>
         </div>
     );
 };

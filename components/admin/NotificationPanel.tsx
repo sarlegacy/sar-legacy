@@ -1,6 +1,3 @@
-
-
-
 import React, { useRef, useEffect } from 'react';
 import { Notification } from '../../types.ts';
 
@@ -10,6 +7,7 @@ interface NotificationPanelProps {
   onClose: () => void;
   onClearAll: () => void;
   triggerRef: React.RefObject<HTMLButtonElement>;
+  position: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 }
 
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({
@@ -18,6 +16,7 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   onClose,
   onClearAll,
   triggerRef,
+  position,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -86,10 +85,24 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
     return null;
   }
 
+  const positionClasses = {
+    'top-right': 'top-12 right-0',
+    'top-left': 'top-12 left-0',
+    'bottom-right': 'bottom-12 right-0',
+    'bottom-left': 'bottom-12 left-0',
+  };
+
+  const animationClasses = {
+    'top-right': 'animate-slide-in-tr',
+    'top-left': 'animate-slide-in-tl',
+    'bottom-right': 'animate-slide-in-br',
+    'bottom-left': 'animate-slide-in-bl',
+  };
+
   return (
     <div
       ref={panelRef}
-      className="absolute top-12 right-0 w-80 max-w-sm bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--border-primary)] rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in-down"
+      className={`absolute w-80 max-w-sm bg-[var(--bg-secondary)] backdrop-blur-xl border border-[var(--border-primary)] rounded-2xl shadow-2xl z-50 overflow-hidden ${animationClasses[position]} ${positionClasses[position]}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="notification-title"

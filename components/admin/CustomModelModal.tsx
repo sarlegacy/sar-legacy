@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CustomModel, AIProvider } from '../../types.ts';
-import { CloseIcon, CpuChipIcon, OpenAiIcon, AnthropicIcon } from './icons.tsx';
+import { CloseIcon, CpuChipIcon, OpenAiIcon, AnthropicIcon, DeepseekIcon } from './icons.tsx';
 import { thirdPartyModels } from '../../data/thirdPartyModels.ts';
 
 interface CustomModelModalProps {
@@ -65,12 +65,13 @@ export const CustomModelModal: React.FC<CustomModelModalProps> = ({ model, onClo
       { value: 'SAR LEGACY', label: 'SAR LEGACY', icon: <CpuChipIcon className="w-5 h-5" /> },
       { value: 'OpenAI', label: 'OpenAI', icon: <OpenAiIcon className="w-5 h-5" /> },
       { value: 'Anthropic', label: 'Anthropic', icon: <AnthropicIcon className="w-5 h-5" /> },
+      { value: 'Deepseek', label: 'Deepseek', icon: <DeepseekIcon className="w-5 h-5" /> },
   ]
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div
-        className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-2xl shadow-2xl p-8 w-full max-w-lg animate-fade-in-down flex flex-col"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-2xl shadow-2xl p-8 w-full max-w-lg animate-scale-in-center flex flex-col"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

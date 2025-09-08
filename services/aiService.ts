@@ -1,6 +1,10 @@
 // Fix: Remove deprecated GenerateContentConfig from import
 import { GoogleGenAI, Chat, Type, GenerateContentResponse, Part, Modality } from "@google/genai";
-import { ChartData, CustomModel, ModelConfig, AspectRatio, GeneratedImageData, ProjectPlan, GeneratedFile } from "../types.ts";
+import { ChartData, CustomModel, ModelConfig, AspectRatio, GeneratedImageData, ProjectPlan, GeneratedFile, ApiKey } from "../types.ts";
+import { createChatSession as createDeepseekChatSession, validateApiKey as validateDeepseekKey } from './deepseekService.ts';
+import { createChatSession as createOpenAIChatSession, validateApiKey as validateOpenAIKey } from './openaiService.ts';
+import { createChatSession as createAnthropicChatSession, validateApiKey as validateAnthropicKey } from './anthropicService.ts';
+
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set for SAR LEGACY models");
@@ -298,88 +302,99 @@ export async function generateContentWithGoogleSearch(prompt: string): Promise<G
     }
 }
 
-// This is a mock implementation for third-party models to demonstrate the architecture.
-// In a real application, you would integrate their respective SDKs here.
-const createMockChat = (model: CustomModel, apiKey: string | undefined, systemInstructionOverride?: string): Chat => {
-  const getMockResponse = (message: string | Part[]) => {
-    const textMessage = Array.isArray(message)
-      ? message.find((p): p is { text: string } => typeof p === 'object' && 'text' in p && !!p.text)?.text ?? ''
-      : message;
-    
-    const instruction = systemInstructionOverride || model.systemInstruction;
-    const fullText = `(This is a mock response from the ${model.provider} model: ${model.modelId})\n\nSystem Instruction:\n> ${instruction}\n\nYour message was:\n> "${textMessage}"`;
-    const promptTokenCount = textMessage.length; // Mock calculation
-    const candidatesTokenCount = fullText.length; // Mock calculation
-    return {
-      fullText,
-      usageMetadata: {
-        promptTokenCount,
-        candidatesTokenCount,
-        totalTokenCount: promptTokenCount + candidatesTokenCount,
-      }
-    };
-  };
+export async function performApiKeyHealthCheck(apiKey: ApiKey): Promise<{ status: 'valid' | 'invalid'; report: string }> {
+    let validationResult: { isValid: boolean; error?: string };
 
-  const sendMessageStream = async (request: { message: string | Part[] } ) => {
-    if (!apiKey) {
-      throw new Error(`No API Key was provided for ${model.provider}. Please configure a key in the Admin Panel.`);
+    try {
+        switch (apiKey.provider) {
+            case 'OpenAI':
+                validationResult = await validateOpenAIKey(apiKey.key);
+                break;
+            case 'Anthropic':
+                validationResult = await validateAnthropicKey(apiKey.key);
+                break;
+            case 'Deepseek':
+                validationResult = await validateDeepseekKey(apiKey.key);
+                break;
+            default:
+                return { status: 'valid', report: 'SAR LEGACY keys do not require validation.' };
+        }
+
+        if (!validationResult.isValid) {
+            return { status: 'invalid', report: `Validation failed: ${validationResult.error}` };
+        }
+
+        const prompt = `
+            An API key for the provider "${apiKey.provider}" has been successfully validated.
+            Please provide a concise security report and best practice recommendations for managing this new credential.
+            The report should be brief, user-friendly, and in plain text.
+            Example: "Your OpenAI key is valid. Recommendation: Set spending limits in your OpenAI dashboard and rotate the key every 90 days for enhanced security."
+        `;
+        
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: { temperature: 0.5 }
+        });
+
+        return { status: 'valid', report: response.text };
+
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
+        return { status: 'invalid', report: `An unexpected error occurred during the health check: ${errorMessage}` };
     }
+}
 
-    const { fullText, usageMetadata } = getMockResponse(request.message);
-    
-    async function* streamGenerator(): AsyncGenerator<GenerateContentResponse> {
-      const chunks = fullText.split('\n\n');
-      for (const chunk of chunks) {
-        // Fix: Align mock with real API by returning a `text` property instead of a function.
-        yield { text: chunk + '\n\n' } as unknown as GenerateContentResponse;
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
+export async function getApiKeyUsageAnalysis(apiKey: ApiKey): Promise<string> {
+    try {
+        const prompt = `
+            Analyze the usage statistics for the following API key and provide actionable insights.
+            The analysis should be concise, user-friendly, and in plain text.
+            Focus on potential cost savings, unusual activity, or efficiency improvements.
+
+            Key Details:
+            - Provider: ${apiKey.provider}
+            - Name: ${apiKey.name}
+            - Request Count: ${apiKey.requestCount}
+            - Total Tokens Used: ${apiKey.tokenUsage}
+            - Last Used: ${apiKey.lastUsed || 'Never'}
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: { temperature: 0.7 }
+        });
+        
+        return response.text;
+
+    } catch (error) {
+        console.error("Error getting usage analysis:", error);
+        return "Failed to generate usage analysis. The AI assistant may be currently unavailable.";
     }
-
-    const stream = streamGenerator();
-    const response = Promise.resolve({
-      usageMetadata,
-      // Fix: Align mock with real API by returning a `text` property instead of a function.
-      text: fullText,
-    } as unknown as GenerateContentResponse);
-
-    return { stream, response };
-  };
-  
-  // Fix: Add a `sendMessage` method to align with the `Chat` type.
-  const sendMessage = async (request: { message: string | Part[] }) => {
-      const { fullText, usageMetadata } = getMockResponse(request.message);
-      return {
-          ...usageMetadata,
-          text: fullText,
-      } as unknown as GenerateContentResponse;
-  };
-  
-  return { sendMessageStream, sendMessage } as unknown as Chat;
-};
-
+}
 
 export function createChatSession(model: CustomModel, apiKey: string | undefined, config?: Partial<ModelConfig>, systemInstructionOverride?: string): Chat {
-  if (model.provider === 'SAR LEGACY') {
-    const { thinkingBudget, ...restConfig } = config || {};
-    
-    // Fix: Remove deprecated GenerateContentConfig type annotation
-    const finalConfig: any = { ...restConfig };
-    if (model.modelId === 'gemini-2.5-flash' && typeof thinkingBudget === 'number') {
-        finalConfig.thinkingConfig = { thinkingBudget };
+  switch (model.provider) {
+    case 'SAR LEGACY': {
+        const { thinkingBudget, ...restConfig } = config || {};
+        const finalConfig: any = { ...restConfig };
+        if (model.modelId === 'gemini-2.5-flash' && typeof thinkingBudget === 'number') {
+            finalConfig.thinkingConfig = { thinkingBudget };
+        }
+        const instruction = systemInstructionOverride || model.systemInstruction;
+        return ai.chats.create({
+            model: model.modelId,
+            config: { ...finalConfig, systemInstruction: instruction },
+        });
     }
-
-    const instruction = systemInstructionOverride || model.systemInstruction;
-
-    return ai.chats.create({
-      model: model.modelId,
-      config: {
-        ...finalConfig,
-        systemInstruction: instruction,
-      },
-    });
-  } else {
-    // For OpenAI, Anthropic, etc., return a mock chat session for this demo
-    return createMockChat(model, apiKey, systemInstructionOverride);
+    case 'OpenAI':
+        return createOpenAIChatSession(model, apiKey, config || {}, systemInstructionOverride);
+    case 'Anthropic':
+        return createAnthropicChatSession(model, apiKey, config || {}, systemInstructionOverride);
+    case 'Deepseek':
+        return createDeepseekChatSession(model, apiKey, config || {}, systemInstructionOverride);
+    default:
+        throw new Error(`Unsupported provider: ${model.provider}`);
   }
 }

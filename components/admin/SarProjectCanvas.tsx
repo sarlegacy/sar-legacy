@@ -103,36 +103,38 @@ export const SarProjectCanvas: React.FC<SarProjectCanvasProps> = ({ project, onC
     }, []);
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-t-2xl p-4 flex items-center justify-between flex-shrink-0" onClick={e => e.stopPropagation()}>
-                <h2 className="text-xl font-bold text-[var(--text-primary)] truncate pr-4">
-                    Preview: {project.name}
-                </h2>
-                <div className="flex items-center gap-2">
-                    <button onClick={refreshPreview} className="p-2 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Refresh Preview">
-                        <RefreshCwIcon className="w-5 h-5" />
-                    </button>
-                    <button onClick={onClose} className="p-2 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Close Preview">
-                        <CloseIcon className="w-6 h-6" />
-                    </button>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col p-4" onClick={onClose}>
+            <div className="w-full h-full flex flex-col animate-scale-in-center" onClick={e => e.stopPropagation()}>
+                <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-t-2xl p-4 flex items-center justify-between flex-shrink-0">
+                    <h2 className="text-xl font-bold text-[var(--text-primary)] truncate pr-4">
+                        Preview: {project.name}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <button onClick={refreshPreview} className="p-2 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Refresh Preview">
+                            <RefreshCwIcon className="w-5 h-5" />
+                        </button>
+                        <button onClick={onClose} className="p-2 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Close Preview">
+                            <CloseIcon className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div className="flex-1 bg-white rounded-b-2xl overflow-hidden relative" onClick={e => e.stopPropagation()}>
-                <iframe
-                    key={iframeKey}
-                    ref={iframeRef}
-                    srcDoc={iframeContent}
-                    title={`Preview of ${project.name}`}
-                    className="w-full h-full border-none"
-                    sandbox="allow-scripts allow-same-origin"
-                />
-                {project.projectPlan && (
-                    <AiAssistantPopup 
-                        projectPlan={project.projectPlan}
-                        initialFiles={projectFiles}
-                        onCodeUpdate={handleCodeUpdate}
+                <div className="flex-1 bg-white rounded-b-2xl overflow-hidden relative">
+                    <iframe
+                        key={iframeKey}
+                        ref={iframeRef}
+                        srcDoc={iframeContent}
+                        title={`Preview of ${project.name}`}
+                        className="w-full h-full border-none"
+                        sandbox="allow-scripts allow-same-origin"
                     />
-                )}
+                    {project.projectPlan && (
+                        <AiAssistantPopup 
+                            projectPlan={project.projectPlan}
+                            initialFiles={projectFiles}
+                            onCodeUpdate={handleCodeUpdate}
+                        />
+                    )}
+                </div>
             </div>
         </div>
     );

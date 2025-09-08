@@ -66,8 +66,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ isOpen, onClose, image
     if (!isOpen || !imageToEdit) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col p-4 animate-fade-in" onClick={onClose}>
-            <div className="w-full max-w-6xl mx-auto flex flex-col h-full" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col p-4" onClick={onClose}>
+            <div className="w-full max-w-6xl mx-auto flex flex-col h-full animate-scale-in-center" onClick={e => e.stopPropagation()}>
                 <header className="bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] rounded-t-2xl p-4 flex items-center justify-between flex-shrink-0">
                     <div className="flex items-center gap-3">
                         <SparkleIcon className="w-6 h-6 text-purple-400"/>

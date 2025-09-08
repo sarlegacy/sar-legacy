@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ChatMessage, MessageRole } from '../../types.ts';
 import { SarLogoIcon, SpeakerOnIcon, SpeakerOffIcon, FileTextIcon } from './icons.tsx';
 import { ChartRenderer } from './ChartRenderer.tsx';
@@ -11,6 +11,8 @@ interface ChatBubbleProps {
   onContextMenu: (event: React.MouseEvent, message: ChatMessage) => void;
   searchTerm: string | null;
   isHighlighted: boolean;
+  userBubbleAlignment: 'left' | 'right';
+  showTimestamps: boolean;
 }
 
 const formatFileSize = (bytes: number, decimals = 2) => {
@@ -40,12 +42,25 @@ const HighlightedText = React.memo(({ text, highlight }: { text: string; highlig
     );
 });
 
-export const ChatBubble = React.memo<ChatBubbleProps>(({ message, enableTTS, isSpeaking, onToggleSpeech, onContextMenu, searchTerm, isHighlighted }) => {
+export const ChatBubble = React.memo<ChatBubbleProps>(({ message, enableTTS, isSpeaking, onToggleSpeech, onContextMenu, searchTerm, isHighlighted, userBubbleAlignment, showTimestamps }) => {
   const isModel = message.role === MessageRole.MODEL;
+  const isUser = !isModel;
+  const isAlignedRight = isUser && userBubbleAlignment === 'right';
+  
+  const timestamp = useMemo(() => {
+    try {
+        const ts = parseInt(message.id.split('-').pop() || '');
+        if (isNaN(ts)) return null;
+        return new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch {
+        return null;
+    }
+  }, [message.id]);
+
 
   return (
     <div
-      className={`flex items-start gap-3 ${isModel ? 'justify-start' : 'justify-end'}`}
+      className={`flex items-start gap-3 ${isAlignedRight ? 'justify-end' : 'justify-start'} animate-slide-in-bottom`}
       onContextMenu={(e) => onContextMenu(e, message)}
     >
       {isModel && (
@@ -56,9 +71,9 @@ export const ChatBubble = React.memo<ChatBubbleProps>(({ message, enableTTS, isS
       <div
         id={`message-${message.id}`}
         className={`rounded-2xl px-4 py-3 relative group flex flex-col ${ isModel ? 'max-w-2xl w-full' : 'max-w-md'} ${
-          isModel
-            ? 'bg-[var(--bg-interactive)] text-[var(--text-primary)] rounded-tl-none'
-            : 'bg-gradient-to-br from-[var(--gradient-from)] to-[var(--gradient-to)] text-white rounded-br-none'
+          isModel ? 'bg-[var(--bg-interactive)] text-[var(--text-primary)] rounded-tl-none' :
+          isAlignedRight ? 'bg-gradient-to-br from-[var(--gradient-from)] to-[var(--gradient-to)] text-white rounded-br-none' :
+          'bg-[var(--bg-interactive)] text-[var(--text-primary)] rounded-bl-none'
         } ${isHighlighted ? 'highlight-bubble' : ''}`}
       >
         {message.attachment && (
@@ -109,6 +124,12 @@ export const ChatBubble = React.memo<ChatBubbleProps>(({ message, enableTTS, isS
                         )
                     ))}
                 </ol>
+            </div>
+        )}
+        
+        {showTimestamps && timestamp && (
+            <div className={`text-xs mt-2 ${isModel ? 'text-gray-400' : 'text-white/70'} text-right -mb-1`}>
+                {timestamp}
             </div>
         )}
 

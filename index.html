@@ -114,6 +114,7 @@
       .compact .compact-space-y > * + * { margin-top: 0.5rem; }
 
 
+      /* --- STANDARD ANIMATIONS --- */
       @keyframes slide-in-left {
         from { transform: translateX(-100%); }
         to { transform: translateX(0); }
@@ -122,14 +123,42 @@
         from { opacity: 0; }
         to { opacity: 1; }
       }
+      @keyframes scale-in-center {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes slide-in-bottom {
+        from { transform: translateY(1rem); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* --- NOTIFICATION SLIDE-IN ANIMATIONS --- */
+      @keyframes slide-in-tr { from { transform: translate(1rem, -1rem); opacity: 0; } to { transform: translate(0, 0); opacity: 1; } }
+      @keyframes slide-in-tl { from { transform: translate(-1rem, -1rem); opacity: 0; } to { transform: translate(0, 0); opacity: 1; } }
+      @keyframes slide-in-br { from { transform: translate(1rem, 1rem); opacity: 0; } to { transform: translate(0, 0); opacity: 1; } }
+      @keyframes slide-in-bl { from { transform: translate(-1rem, 1rem); opacity: 0; } to { transform: translate(0, 0); opacity: 1; } }
+      
+      /* --- DEPRECATED/LEGACY (kept for compatibility) --- */
       @keyframes animate-fade-in-down {
         from { opacity: 0; transform: translateY(-1rem); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .animate-fade-in-down {
-        animation: animate-fade-in-down 0.3s ease-out;
-      }
       
+      /* --- ANIMATION UTILITY CLASSES --- */
+      .animate-fade-in-down { animation: animate-fade-in-down 0.3s ease-out; }
+      .animate-scale-in-center { animation: scale-in-center 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+      .animate-slide-in-bottom { animation: slide-in-bottom 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+      .animate-fade-in-up { animation: fade-in-up 0.5s ease-out both; }
+      .animate-slide-in-tr { animation: slide-in-tr 0.3s ease-out; }
+      .animate-slide-in-tl { animation: slide-in-tl 0.3s ease-out; }
+      .animate-slide-in-br { animation: slide-in-br 0.3s ease-out; }
+      .animate-slide-in-bl { animation: slide-in-bl 0.3s ease-out; }
+
+      /* --- UI STATE/LOADING ANIMATIONS --- */
       @keyframes bounce-dot {
         0%, 80%, 100% { transform: scale(0); }
         40% { transform: scale(1.0); }
@@ -139,19 +168,6 @@
       }
       .bounce-dot span:nth-child(2) { animation-delay: -0.16s; }
       .bounce-dot span:nth-child(3) { animation-delay: -0.32s; }
-
-      .highlight-bubble {
-        box-shadow: 0 0 0 2px var(--focus-ring);
-        transition: box-shadow 0.3s ease-in-out;
-      }
-
-      mark {
-        background-color: #D8B4FE; /* purple-300 */
-        color: var(--bg-primary);
-        border-radius: 3px;
-        padding: 0 2px;
-      }
-
       @keyframes ping {
         75%, 100% {
           transform: scale(1.75);
@@ -159,6 +175,17 @@
         }
       }
 
+      /* --- MISC STYLES --- */
+      .highlight-bubble {
+        box-shadow: 0 0 0 2px var(--focus-ring);
+        transition: box-shadow 0.3s ease-in-out;
+      }
+      mark {
+        background-color: #D8B4FE; /* purple-300 */
+        color: var(--bg-primary);
+        border-radius: 3px;
+        padding: 0 2px;
+      }
       #login-video-bg {
         position: fixed;
         right: 0;
@@ -171,7 +198,6 @@
         object-fit: cover;
         display: none;
       }
-      
       body.login-video-active #login-video-bg {
         display: block;
       }

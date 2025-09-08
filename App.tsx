@@ -7,15 +7,14 @@ import {
   DataAnalysisIcon, MoreIcon, ChevronRightIcon, CloseIcon,
   SendIcon, SarLogoIcon, AlertTriangleIcon, ChartBarIcon, PaperclipIcon,
   UsersIcon, LogoutIcon, FileTextIcon, CopyIcon, SpeakerOnIcon, DownloadIcon,
-  SearchIcon, ChevronUpIcon, ChevronDownIcon, PlugIcon, CpuChipIcon
+  SearchIcon, ChevronUpIcon, ChevronDownIcon, PlugIcon, CpuChipIcon, MenuIcon, TrashIcon
 } from './components/admin/icons.tsx';
 import { SuggestionChip } from './components/admin/SuggestionChip.tsx';
-import { createChatSession, generateContentWithGoogleSearch } from './services/aiService.ts';
+import { createChatSession, generateContentWithGoogleSearch, performApiKeyHealthCheck, getApiKeyUsageAnalysis, generateChartData } from './services/aiService.ts';
 import * as fileService from './services/fileService.ts';
 import * as galleryService from './services/galleryService.ts';
 import * as driveService from './services/googleDriveService.ts';
-import { generateChartData } from './services/aiService.ts';
-import { ChatMessage, MessageRole, Notification, AppSettings, User, CustomModel, ApiKey, GalleryItem, Connector, AppData, LogEntry, GeneratedImageData, ProjectPlan, GeneratedFile, SoundSettings } from './types.ts';
+import { ChatMessage, MessageRole, Notification, AppSettings, User, CustomModel, ApiKey, GalleryItem, Connector, AppData, LogEntry, GeneratedImageData, ProjectPlan, GeneratedFile, SoundSettings, PrivacySettings } from './types.ts';
 import { ChatBubble } from './components/admin/ChatBubble.tsx';
 import { NotificationPanel } from './components/admin/NotificationPanel.tsx';
 import { LoginScreen } from './components/admin/LoginScreen.tsx';
@@ -36,6 +35,7 @@ import { StatusIndicator } from './components/admin/StatusIndicator.tsx';
 import { SarStudio } from './components/admin/SarStudio.tsx';
 import { SarProjectCanvas } from './components/admin/SarProjectCanvas.tsx';
 import { ImageEditor } from './components/admin/ImageEditor.tsx';
+import { ProfilePanel } from './components/admin/ProfilePanel.tsx';
 
 
 // Add type definitions for the Web Speech API to fix TypeScript errors.
@@ -71,26 +71,51 @@ function useDebounce<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
+const Clock: React.FC = memo(() => {
+    const [date, setDate] = useState(new Date());
+
+    useEffect(() => {
+        const timerId = setInterval(() => setDate(new Date()), 1000);
+        return () => clearInterval(timerId);
+    }, []);
+
+    const formattedTime = date.toLocaleTimeString(undefined, {
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+
+    const formattedDate = date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+    });
+
+    return (
+        <div className="text-center font-medium">
+            <span className="text-sm text-[var(--text-primary)]">{formattedTime}</span>
+            <span className="text-xs text-[var(--text-muted)]"> | {formattedDate}</span>
+        </div>
+    );
+});
+
+
 const Sidebar: React.FC<{ 
   onSettingsClick: () => void; 
   onAdminClick: () => void;
-  onMarketplaceClick: () => void;
-  onGalleryClick: () => void;
-  onSarStudioClick: () => void;
-  onConnectorsClick: () => void;
+  onPanelClick: (panel: 'gallery' | 'studio' | 'marketplace' | 'connectors') => void;
   settingsButtonRef: React.RefObject<HTMLButtonElement>;
   isAdmin: boolean;
-}> = memo(({ onSettingsClick, onAdminClick, onMarketplaceClick, onGalleryClick, onSarStudioClick, onConnectorsClick, settingsButtonRef, isAdmin }) => {
+}> = memo(({ onSettingsClick, onAdminClick, onPanelClick, settingsButtonRef, isAdmin }) => {
   const navItems = [
-    { icon: <GalleryIcon />, label: 'Gallery', action: onGalleryClick },
-    { icon: <GenerateIcon />, label: 'SAR Studio', action: onSarStudioClick },
-    { icon: <GridIcon />, label: 'Apps', action: onMarketplaceClick },
-    { icon: <PlugIcon />, label: 'Connectors', action: onConnectorsClick },
+    { icon: <GalleryIcon />, label: 'Gallery', action: () => onPanelClick('gallery') },
+    { icon: <GenerateIcon />, label: 'SAR Studio', action: () => onPanelClick('studio') },
+    { icon: <GridIcon />, label: 'Apps', action: () => onPanelClick('marketplace') },
+    { icon: <PlugIcon />, label: 'Connectors', action: () => onPanelClick('connectors') },
   ];
   return (
-    <aside className="bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] flex flex-col items-center justify-between p-4 py-8">
+    <aside className="bg-[var(--bg-secondary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] flex flex-col items-center justify-between p-4 py-8 h-full">
       <div className="flex flex-col items-center gap-8">
-        <a href="#" aria-label="Homepage">
+        <a href="#" onClick={(e) => { e.preventDefault(); window.location.reload(); }} aria-label="Homepage">
           <SarLegacyLogo className="w-12 h-12" />
         </a>
         <nav className="flex flex-col gap-6">
@@ -118,10 +143,17 @@ const Sidebar: React.FC<{
 });
 
 const WelcomeScreen: React.FC = memo(() => {
+    const greeting = useMemo(() => {
+        const hour = new Date().getHours();
+        if (hour < 12) return "Good morning!";
+        if (hour < 18) return "Good afternoon!";
+        return "Good evening!";
+    }, []);
+
   return (
     <>
       <section className="mt-16 flex-shrink-0">
-        <p className="text-[var(--text-muted)]">Good morning!</p>
+        <p className="text-[var(--text-muted)]">{greeting}</p>
         <h1 className="text-5xl lg:text-6xl font-extrabold tracking-tighter text-[var(--text-primary)] !leading-[1.1] mt-1">You're on a wave of<br/>productivity!</h1>
       </section>
     </>
@@ -153,6 +185,11 @@ const defaultSoundSettings: SoundSettings = {
     voiceRecognition: true,
 };
 
+const defaultPrivacySettings: PrivacySettings = {
+    autoClearOnLogout: false,
+    sessionTimeoutMinutes: 30, // 0 for never
+};
+
 const defaultSettings: AppSettings = {
     theme: 'dark',
     modelConfig: { temperature: 0.7, topP: 0.95, topK: 40 },
@@ -165,7 +202,16 @@ const defaultSettings: AppSettings = {
     autoScroll: true,
     exportFormat: 'markdown',
     soundSettings: defaultSoundSettings,
+    privacySettings: defaultPrivacySettings,
+    openLastUsedPanel: true,
     systemInstruction: '',
+    userBubbleAlignment: 'right',
+    showSuggestionChips: true,
+    showTimestamps: false,
+    webSearchDefault: false,
+    notificationPosition: 'top-right',
+    showStatusIndicator: true,
+    showTokenCount: true,
 };
 
 const formatFileSize = (bytes: number, decimals = 2) => {
@@ -176,6 +222,8 @@ const formatFileSize = (bytes: number, decimals = 2) => {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
+
+type MainView = 'chat' | 'gallery' | 'studio' | 'marketplace' | 'connectors';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -192,10 +240,8 @@ const App: React.FC = () => {
   const [isDriveConnecting, setIsDriveConnecting] = useState(false);
   
   const [activeModel, setActiveModel] = useState<CustomModel>(defaultModel);
-  const [isMarketplaceOpen, setIsMarketplaceOpen] = useState(false);
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-  const [isConnectorsPanelOpen, setIsConnectorsPanelOpen] = useState(false);
-  const [isSarStudioOpen, setIsSarStudioOpen] = useState(false);
+  const [activeView, setActiveView] = useState<MainView>('chat');
+  
   const [isModelModalOpen, setIsModelModalOpen] = useState(false);
   const [editingModel, setEditingModel] = useState<CustomModel | null>(null);
   const [projectToPreview, setProjectToPreview] = useState<GalleryItem | null>(null);
@@ -209,6 +255,8 @@ const App: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isProfilePanelOpen, setIsProfilePanelOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentlySpeakingMessageId, setCurrentlySpeakingMessageId] = useState<string | null>(null);
   const [attachment, setAttachment] = useState<{ file: File; url: string } | null>(null);
   const [activeDocument, setActiveDocument] = useState<GalleryItem | null>(null);
@@ -338,8 +386,8 @@ const App: React.FC = () => {
         const storedSettings = localStorage.getItem('appSettings');
         if (storedSettings) {
             const parsedSettings = JSON.parse(storedSettings);
-            // Ensure soundSettings object is complete
             parsedSettings.soundSettings = { ...defaultSoundSettings, ...(parsedSettings.soundSettings || {}) };
+            parsedSettings.privacySettings = { ...defaultPrivacySettings, ...(parsedSettings.privacySettings || {}) };
             setSettings({ ...defaultSettings, ...parsedSettings });
         } else {
             setSettings(defaultSettings);
@@ -435,6 +483,21 @@ const App: React.FC = () => {
         console.error("Failed to parse stored user from localStorage", error);
     }
   }, [users]);
+  
+  useEffect(() => {
+    if (settings.openLastUsedPanel && !isInitialLoad.current) {
+        try {
+            const savedView = localStorage.getItem('sarLegacyLastActiveView') as MainView;
+            if (savedView && savedView !== 'chat') {
+                setActiveView(savedView);
+            }
+        } catch(e) { console.error("Could not load last active view", e); }
+    }
+  }, [settings.openLastUsedPanel]);
+
+  useEffect(() => {
+      try { localStorage.setItem('sarLegacyLastActiveView', activeView); } catch(e) { console.error(e) }
+  }, [activeView]);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -553,21 +616,23 @@ const App: React.FC = () => {
   }, [checkModelStatus]);
   
   const handleClearChat = useCallback(() => {
-    setMessages([]);
-    speechSynthesis.cancel();
-    setCurrentlySpeakingMessageId(null);
-    setSessionTokenCount({ prompt: 0, response: 0 });
-    setActiveDocument(null);
-    if (activeModel.provider === 'SAR LEGACY') {
-        chat.current = createChatSession(activeModel, undefined, settings.modelConfig, settings.systemInstruction);
-    } else {
-        chat.current = null;
+    if (confirm("Are you sure you want to clear the current chat history? This action cannot be undone.")) {
+      setMessages([]);
+      speechSynthesis.cancel();
+      setCurrentlySpeakingMessageId(null);
+      setSessionTokenCount({ prompt: 0, response: 0 });
+      setActiveDocument(null);
+      if (activeModel.provider === 'SAR LEGACY') {
+          chat.current = createChatSession(activeModel, undefined, settings.modelConfig, settings.systemInstruction);
+      } else {
+          chat.current = null;
+      }
     }
   }, [activeModel, settings.modelConfig, settings.systemInstruction]);
 
   const handleSelectModel = useCallback((model: CustomModel) => {
     setActiveModel(model);
-    setIsMarketplaceOpen(false);
+    setActiveView('chat');
     handleClearChat();
   }, [handleClearChat]);
 
@@ -590,13 +655,40 @@ const App: React.FC = () => {
   }, [users, addLogEntry]);
 
   const handleLogout = useCallback(() => {
+      if (settings.privacySettings.autoClearOnLogout) {
+          handleClearChat();
+      }
       addLogEntry('User Logout', { user: currentUser?.name });
       setCurrentUser(null);
-      setMessages([]);
       setSessionTokenCount({ prompt: 0, response: 0 });
       setActiveDocument(null);
       try { localStorage.removeItem('sarLegacyLoggedInUser'); } catch (e) { console.error(e); }
-  }, [currentUser?.name, addLogEntry]);
+  }, [currentUser?.name, addLogEntry, settings.privacySettings.autoClearOnLogout, handleClearChat]);
+
+  useEffect(() => {
+    const timeoutMinutes = settings.privacySettings.sessionTimeoutMinutes;
+    if (timeoutMinutes === 0 || !currentUser) return;
+
+    let timeoutId: number;
+
+    const resetTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        addLogEntry('Session Timeout');
+        handleLogout();
+      }, timeoutMinutes * 60 * 1000);
+    };
+
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, resetTimer));
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => window.removeEventListener(event, resetTimer));
+    };
+  }, [settings.privacySettings.sessionTimeoutMinutes, handleLogout, addLogEntry, currentUser]);
 
   const startSpeaking = useCallback((messageId: string, text: string) => {
     if (!text || !text.trim()) return;
@@ -649,7 +741,9 @@ const App: React.FC = () => {
       setGalleryRoot(prevRoot => galleryService.createFolder(prevRoot, prevRoot.id, newGalleryItem));
     }
 
-    const isWebSearch = text.startsWith('/web ');
+    const isExplicitWebSearch = text.startsWith('/web ');
+    const isCommand = text.startsWith('/');
+    let isWebSearch = isExplicitWebSearch || (settings.webSearchDefault && !isCommand && !currentAttachment);
     const isVisualizationRequest = !isWebSearch && !currentAttachment && (/\b(visualize|chart|graph|plot)\b/i.test(text) || text.includes("Visualize Data"));
     let textToSend = text;
 
@@ -674,7 +768,7 @@ const App: React.FC = () => {
 
 
     if (isWebSearch) {
-        const query = text.substring(5).trim();
+        const query = isExplicitWebSearch ? text.substring(5).trim() : text;
         if (!query) {
             const errorMessage: ChatMessage = { id: `model-${Date.now()}`, role: MessageRole.MODEL, text: "Please provide a query to search the web. For example: `/web latest AI news`" };
             setMessages(prev => [...prev, errorMessage]);
@@ -786,7 +880,7 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     }
-  }, [attachment, settings.enableTTS, settings.modelConfig, startSpeaking, activeModel, apiKeys, settings.systemInstruction, messages, activeDocument, playSound]);
+  }, [attachment, settings, startSpeaking, activeModel, apiKeys, messages, activeDocument, playSound]);
 
   const handleMicClick = useCallback(() => {
     if (!recognitionRef.current) return;
@@ -844,8 +938,19 @@ const App: React.FC = () => {
 
   const handleUpdateUser = useCallback((updatedUser: User) => {
     setUsers(prev => prev.map(user => user.id === updatedUser.id ? updatedUser : user));
+    if (currentUser && currentUser.id === updatedUser.id) {
+        setCurrentUser(updatedUser);
+        try {
+            const storedUser = localStorage.getItem('sarLegacyLoggedInUser');
+            if (storedUser) {
+                localStorage.setItem('sarLegacyLoggedInUser', JSON.stringify(updatedUser));
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
     addLogEntry('User Updated', { name: updatedUser.name, id: updatedUser.id });
-  }, [addLogEntry]);
+  }, [currentUser, addLogEntry]);
 
   const handleDeleteUser = useCallback((userId: string) => {
     const userToDelete = users.find(u => u.id === userId);
@@ -936,9 +1041,24 @@ const App: React.FC = () => {
   const openAddModelModal = useCallback(() => { setEditingModel(null); setIsModelModalOpen(true); }, []);
   const openEditModelModal = useCallback((model: CustomModel) => { setEditingModel(model); setIsModelModalOpen(true); }, []);
 
-  const handleAddApiKey = useCallback((key: Omit<ApiKey, 'id'|'requestCount'|'tokenUsage'|'lastUsed'>) => {
-    setApiKeys(prev => [...prev, { ...key, id: `key-${Date.now()}`, requestCount: 0, tokenUsage: 0, lastUsed: null }]);
+  const handleAddApiKey = useCallback(async (key: Omit<ApiKey, 'id'|'requestCount'|'tokenUsage'|'lastUsed'|'createdAt'|'tokenLimit'|'healthCheckStatus'|'healthCheckReport'|'usageAnalysis'>) => {
+    const newKey: ApiKey = { 
+        ...key, 
+        id: `key-${Date.now()}`, 
+        requestCount: 0, 
+        tokenUsage: 0, 
+        lastUsed: null,
+        createdAt: new Date().toISOString(),
+        healthCheckStatus: 'checking',
+        healthCheckReport: 'Performing initial health check...',
+        usageAnalysis: '',
+    };
+    setApiKeys(prev => [...prev, newKey]);
     addLogEntry('API Key Added', { name: key.name, provider: key.provider });
+    
+    // Perform health check in the background
+    const { status, report } = await performApiKeyHealthCheck(newKey);
+    setApiKeys(prev => prev.map(k => k.id === newKey.id ? { ...k, healthCheckStatus: status, healthCheckReport: report } : k));
   }, [addLogEntry]);
 
   const handleUpdateApiKey = useCallback((updatedKey: ApiKey) => {
@@ -954,6 +1074,34 @@ const App: React.FC = () => {
     }
   }, [apiKeys, addLogEntry]);
   
+  const handleDeleteApiKeys = useCallback((keyIds: string[]) => {
+    const keysToDelete = apiKeys.filter(k => keyIds.includes(k.id));
+    if (keysToDelete.length > 0) {
+        setApiKeys(prev => prev.filter(key => !keyIds.includes(key.id)));
+        addLogEntry('API Keys Deleted', { count: keyIds.length, names: keysToDelete.map(k => k.name).join(', ') });
+    }
+  }, [apiKeys, addLogEntry]);
+
+  const handleRunHealthCheck = useCallback(async (keyId: string) => {
+      setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, healthCheckStatus: 'checking', healthCheckReport: 'Performing health check...' } : k));
+      const keyToCheck = apiKeys.find(k => k.id === keyId);
+      if (!keyToCheck) return;
+
+      const { status, report } = await performApiKeyHealthCheck(keyToCheck);
+      setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, healthCheckStatus: status, healthCheckReport: report } : k));
+      addLogEntry('API Key Health Check', { name: keyToCheck.name });
+  }, [apiKeys, addLogEntry]);
+  
+  const handleRunUsageAnalysis = useCallback(async (keyId: string) => {
+      setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, usageAnalysis: 'Generating analysis...' } : k));
+      const keyToAnalyze = apiKeys.find(k => k.id === keyId);
+      if (!keyToAnalyze) return;
+
+      const report = await getApiKeyUsageAnalysis(keyToAnalyze);
+      setApiKeys(prev => prev.map(k => k.id === keyId ? { ...k, usageAnalysis: report } : k));
+      addLogEntry('API Key Analysis Ran', { name: keyToAnalyze.name });
+  }, [apiKeys, addLogEntry]);
+
   const handleGalleryCreateFolder = useCallback((parentId: string, folderName: string) => {
     const newFolder: GalleryItem = { id: `folder-${Date.now()}`, type: 'folder', name: folderName, date: new Date().toISOString(), children: [] };
     setGalleryRoot(currentRoot => galleryService.createFolder(currentRoot, parentId, newFolder));
@@ -979,7 +1127,7 @@ const App: React.FC = () => {
   const handleChatWithDocument = useCallback((item: GalleryItem) => {
     if (!item.file) { alert("To chat about this document from a previous session, please re-upload it."); return; }
     setActiveDocument(item);
-    setIsGalleryOpen(false);
+    setActiveView('chat');
     setMessages([{ id: `model-rag-intro-${Date.now()}`, role: MessageRole.MODEL, text: `Now analyzing "${item.name}". Ask me anything about its content.` }]);
   }, []);
 
@@ -1010,11 +1158,6 @@ const App: React.FC = () => {
         addLogEntry(action, { name: connector?.name || connectorId });
     }
   }, [isDriveConnected, addLogEntry, connectedConnectorIds]);
-
-  const openMarketplace = useCallback(() => { setIsGalleryOpen(false); setIsConnectorsPanelOpen(false); setIsSarStudioOpen(false); setIsMarketplaceOpen(true); }, []);
-  const openGallery = useCallback(() => { setIsMarketplaceOpen(false); setIsConnectorsPanelOpen(false); setIsSarStudioOpen(false); setIsGalleryOpen(true); }, []);
-  const openConnectorsPanel = useCallback(() => { setIsMarketplaceOpen(false); setIsGalleryOpen(false); setIsSarStudioOpen(false); setIsConnectorsPanelOpen(true); }, []);
-  const openSarStudio = useCallback(() => { setIsMarketplaceOpen(false); setIsGalleryOpen(false); setIsConnectorsPanelOpen(false); setIsSarStudioOpen(true); }, []);
 
   const handleImagesGenerated = useCallback((images: GeneratedImageData[]) => {
     const aiGenerationsFolderId = 'ai-generations-folder';
@@ -1067,9 +1210,8 @@ const App: React.FC = () => {
     ].slice(0, 10));
 
     playSound('notification');
-    setIsSarStudioOpen(false);
-    openGallery();
-  }, [openGallery, addLogEntry, playSound]);
+    setActiveView('gallery');
+  }, [addLogEntry, playSound]);
   
     const handleSaveEditedImage = useCallback((imageData: { base64: string, prompt: string, name: string }) => {
         const aiGenerationsFolderId = 'ai-generations-folder';
@@ -1157,9 +1299,8 @@ const App: React.FC = () => {
         ].slice(0, 10));
     
         playSound('notification');
-        setIsSarStudioOpen(false);
-        openGallery();
-    }, [openGallery, addLogEntry, playSound]);
+        setActiveView('gallery');
+    }, [addLogEntry, playSound]);
 
     const handleProjectGenerated = useCallback((data: { projectPlan: ProjectPlan, files: GeneratedFile[] }) => {
         const sarProjectsFolderId = 'sar-projects-folder';
@@ -1196,9 +1337,8 @@ const App: React.FC = () => {
         ].slice(0, 10));
     
         playSound('notification');
-        setIsSarStudioOpen(false);
-        openGallery();
-    }, [openGallery, addLogEntry, playSound]);
+        setActiveView('gallery');
+    }, [addLogEntry, playSound]);
 
     const handleEditImageRequest = useCallback((item: GalleryItem) => {
         setEditingImage(item);
@@ -1213,6 +1353,16 @@ const App: React.FC = () => {
     setLogs([]);
     addLogEntry('Activity Log Cleared');
   }, [addLogEntry]);
+
+  const handleMobileNav = (action: () => void) => {
+      action();
+      setIsSidebarOpen(false);
+  };
+    
+  const handlePanelClick = (panel: MainView) => {
+      setActiveView(panel);
+      setIsSidebarOpen(false);
+  };
 
   const suggestions = [
     { text: 'Recommend a movie', icon: <MovieIcon /> }, { text: 'Generate image', icon: <GenerateIcon /> },
@@ -1237,6 +1387,32 @@ const App: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }, [settings.exportFormat]);
+
+   const handleExportChatHistory = useCallback(() => {
+    if (messages.length === 0) {
+      alert("Chat history is empty.");
+      return;
+    }
+    let content = '';
+    const fileExtension = settings.exportFormat;
+    const filename = `sar-legacy-chat-history-${new Date().toISOString().split('T')[0]}.${fileExtension === 'markdown' ? 'md' : fileExtension}`;
+
+    switch (settings.exportFormat) {
+      case 'json':
+        content = JSON.stringify(messages, null, 2);
+        break;
+      case 'markdown':
+        content = messages.map(msg => `**[${msg.role}]** (${new Date(parseInt(msg.id.split('-')[1])).toLocaleString()})\n\n${msg.attachment ? `*Attachment: ${msg.attachment.name}*\n\n` : ''}${msg.text || ''}`).join('\n\n---\n\n');
+        break;
+      default:
+        content = messages.map(msg => `[${msg.role}] (${new Date(parseInt(msg.id.split('-')[1])).toLocaleString()})\n\n${msg.attachment ? `Attachment: ${msg.attachment.name}\n\n` : ''}${msg.text || ''}`).join('\n\n---\n\n');
+        break;
+    }
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    addLogEntry('Chat History Exported');
+  }, [messages, settings.exportFormat, addLogEntry]);
 
   const handleBackupAppData = useCallback(() => {
     try {
@@ -1308,14 +1484,7 @@ const App: React.FC = () => {
   const handleResetApplication = useCallback(() => {
     if (confirm("WARNING: This will delete all local data, including users, custom models, and API keys, and log you out. Are you sure you want to proceed?")) {
         console.log("Resetting application...");
-        localStorage.removeItem('sarLegacyUsers');
-        localStorage.removeItem('customModels');
-        localStorage.removeItem('apiKeys');
-        localStorage.removeItem('appSettings');
-        localStorage.removeItem('galleryRoot');
-        localStorage.removeItem('connectedConnectorIds');
-        localStorage.removeItem('activityLogs');
-        localStorage.removeItem('sarLegacyLoggedInUser');
+        localStorage.clear(); // Clear all local storage for the domain
         window.location.reload();
     }
   }, []);
@@ -1338,114 +1507,155 @@ const App: React.FC = () => {
     contextMenuOptions.push({ label: 'Export Message', icon: <DownloadIcon />, action: () => handleExportMessage(contextMenu.message!), });
   }
 
+  const mainContentMap = {
+    gallery: <Gallery onMenuClick={() => setIsSidebarOpen(true)} onClose={() => setActiveView('chat')} galleryRoot={galleryRoot} onCreateFolder={handleGalleryCreateFolder} onRenameItem={handleGalleryRenameItem} onDeleteItems={handleGalleryDeleteItems} onMoveItems={handleGalleryMoveItems} onChatWithDocument={handleChatWithDocument} onPreviewSarProject={handlePreviewSarProject} onEditImageRequest={handleEditImageRequest} />,
+    studio: <SarStudio onMenuClick={() => setIsSidebarOpen(true)} onClose={() => setActiveView('chat')} onImagesGenerated={handleImagesGenerated} onVideoGenerated={handleVideoGenerated} onProjectGenerated={handleProjectGenerated} />,
+    marketplace: <ModelMarketplace onMenuClick={() => setIsSidebarOpen(true)} onSelectModel={handleSelectModel} onClose={() => setActiveView('chat')} models={[...defaultModels, ...customModels]} onAddModel={openAddModelModal} onEditModel={openEditModelModal} onDeleteModel={handleDeleteModel} onImportModels={handleImportModels} />,
+    connectors: <ConnectorsPanel onMenuClick={() => setIsSidebarOpen(true)} onClose={() => setActiveView('chat')} connectors={mockConnectors} connectedConnectorIds={connectedConnectorIds} onToggleConnector={handleToggleConnector} isConnecting={isDriveConnecting} />,
+    chat: (
+        <>
+            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-purple-500/20 to-transparent pointer-events-none -z-10"></div>
+            <header className="grid grid-cols-2 lg:grid-cols-3 items-center text-[var(--text-muted)]">
+                <div className="flex items-center gap-2 md:gap-4 justify-start">
+                     <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 -ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                        <MenuIcon />
+                    </button>
+                    <div className="flex items-center gap-2">
+                    <h1 className="font-semibold text-[var(--text-primary)]">{activeModel.name}</h1>
+                    <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 text-xs rounded-full">{activeModel.provider}</span>
+                    </div>
+                    {settings.showStatusIndicator && <StatusIndicator status={modelStatus} tooltipText={modelStatusMessage} />}
+                </div>
+                
+                <div className="hidden lg:flex justify-center">
+                    <Clock />
+                </div>
+
+                <div className="flex items-center gap-2 sm:gap-4 justify-end col-start-2 lg:col-start-3">
+                    {messages.length > 0 && (
+                        <>
+                            <button onClick={handleClearChat} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Clear chat history"><TrashIcon /></button>
+                            <div className="flex items-center">
+                                {isSearchActive ? (
+                                    <div className="flex items-center gap-2 bg-[var(--bg-interactive)] rounded-full border border-[var(--border-primary)] p-1 animate-fade-in-down">
+                                        <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm px-2 w-24 sm:w-36" autoFocus />
+                                        {searchTerm && <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">{searchResults.length > 0 ? `${(currentResultIndex ?? -1) + 1} / ${searchResults.length}` : '0 / 0'}</span>}
+                                        <button onClick={handlePrevResult} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] disabled:opacity-50" aria-label="Previous search result"><ChevronUpIcon className="w-4 h-4" /></button>
+                                        <button onClick={handleNextResult} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] disabled:opacity-50" aria-label="Next search result"><ChevronDownIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => { setIsSearchActive(false); setSearchTerm(''); }} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Close search"><CloseIcon className="w-4 h-4" /></button>
+                                    </div>
+                                ) : ( <button onClick={() => setIsSearchActive(true)} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Search chat history"><SearchIcon /></button> )}
+                            </div>
+                        </>
+                    )}
+                    <button onClick={() => setIsProfilePanelOpen(true)} className="flex items-center gap-3 p-1 pr-2 sm:pr-4 rounded-full transition-colors hover:bg-[var(--bg-interactive)]" aria-label="Open user profile">
+                        {currentUser.avatar ? (
+                            <img src={currentUser.avatar} alt={currentUser.name} className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center text-sm font-bold text-white">
+                                {currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                            </div>
+                        )}
+                        <span className="font-semibold text-[var(--text-primary)] hidden sm:block">{currentUser.name}</span>
+                    </button>
+                    <button onClick={handleLogout} className="flex items-center gap-2 hover:text-[var(--text-primary)]" aria-label="Logout"><LogoutIcon /></button>
+                    <div className="relative">
+                        <button ref={notificationsButtonRef} onClick={() => setIsNotificationsOpen(p => !p)} className="flex items-center gap-2 hover:text-[var(--text-primary)]" aria-label="Toggle notifications">
+                            <BellIcon />
+                            {notifications.length > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center border-2 border-[var(--bg-secondary)]">{notifications.length}</div>}
+                        </button>
+                        <NotificationPanel isOpen={isNotificationsOpen} notifications={notifications} onClose={() => setIsNotificationsOpen(false)} onClearAll={() => { setNotifications([]); setIsNotificationsOpen(false); }} triggerRef={notificationsButtonRef} position={settings.notificationPosition} />
+                    </div>
+                </div>
+            </header>
+            
+            {messages.length === 0 ? <WelcomeScreen /> : (
+                <div ref={chatContainerRef} role="log" aria-live="polite" aria-busy={isLoading} className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 mt-4 space-y-6 py-4">
+                    {messages.map((msg) => (
+                        <ChatBubble key={msg.id} message={msg} enableTTS={settings.enableTTS} isSpeaking={currentlySpeakingMessageId === msg.id} onToggleSpeech={handleToggleSpeech} onContextMenu={handleContextMenu} searchTerm={isSearchActive ? searchTerm : null} isHighlighted={currentResultIndex !== null && searchResults[currentResultIndex] === msg.id} userBubbleAlignment={settings.userBubbleAlignment} showTimestamps={settings.showTimestamps} />
+                    ))}
+                    {isLoading && messages.length > 0 && messages[messages.length - 1].role === MessageRole.USER && (
+                    <div role="status" className="flex items-start gap-3 justify-start">
+                        <div className="w-8 h-8 flex items-center justify-center bg-[var(--bg-interactive)] rounded-full flex-shrink-0 mt-1"><SarLogoIcon /></div>
+                        <div className="rounded-2xl px-4 py-3 max-w-md bg-[var(--bg-interactive)] text-[var(--text-muted)] rounded-tl-none">
+                            <div className="flex items-center gap-2 h-5 bounce-dot"><span className="sr-only">Typing...</span><span className="w-2 h-2 bg-current rounded-full"></span><span className="w-2 h-2 bg-current rounded-full"></span><span className="w-2 h-2 bg-current rounded-full"></span></div>
+                        </div>
+                    </div>
+                    )}
+                </div>
+            )}
+
+            <div className="mt-auto pt-4">
+                {messages.length === 0 && !activeDocument && settings.showSuggestionChips && (
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                    {suggestions.map((s, i) => <SuggestionChip key={i} text={s.text} icon={s.icon} onClick={(text) => {
+                        if (text === 'Search Web') { setInputValue('/web '); textareaRef.current?.focus(); }
+                        else if (text === 'Generate image') { setActiveView('studio'); }
+                        else { handleSendMessage(text); }
+                    }} />)}
+                </div>
+                )}
+                {activeDocument && (
+                    <div className="mb-2 max-w-md p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative flex items-center gap-3">
+                        <div className="w-10 h-10 bg-[var(--bg-tertiary)] rounded-md flex items-center justify-center flex-shrink-0"><FileTextIcon className="w-6 h-6 text-[var(--text-muted)]" /></div>
+                        <div className="text-sm overflow-hidden flex-1"><p className="text-[var(--text-muted)] text-xs">Analyzing Document</p><p className="text-[var(--text-primary)] font-medium truncate">{activeDocument.name}</p></div>
+                        <button onClick={() => setActiveDocument(null)} aria-label="Stop analyzing document" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1"><CloseIcon className="w-4 h-4" /></button>
+                    </div>
+                )}
+                {attachment && (
+                    <div className="mb-2 max-w-sm p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative flex items-center gap-3">
+                        {attachment.file.type.startsWith('image/') ? ( <img src={attachment.url} alt="Attachment preview" className="w-16 h-16 object-cover rounded-md flex-shrink-0" /> ) : ( <div className="w-16 h-16 bg-[var(--bg-tertiary)] rounded-md flex items-center justify-center flex-shrink-0"><FileTextIcon className="w-8 h-8 text-[var(--text-muted)]" /></div> )}
+                        <div className="text-sm overflow-hidden flex-1"><p className="text-[var(--text-primary)] font-medium truncate">{attachment.file.name}</p><p className="text-[var(--text-muted)]">{formatFileSize(attachment.file.size)}</p></div>
+                        <button onClick={() => setAttachment(null)} aria-label="Remove attachment" className="absolute -top-2 -right-2 bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1 border border-[var(--border-primary)]"><CloseIcon className="w-4 h-4" /></button>
+                    </div>
+                )}
+                {settings.showTokenCount && messages.length > 0 && (
+                    <div className="flex justify-end text-xs text-[var(--text-muted)] px-3 pb-2">
+                        <span>Session Tokens: {sessionTokenCount.prompt + sessionTokenCount.response}</span>
+                    </div>
+                )}
+                <form onSubmit={(e) => {e.preventDefault(); handleSendMessage(inputValue);}} className="bg-black/20 border border-[var(--border-primary)] rounded-2xl flex items-end p-2 pl-6 focus-within:border-purple-500 transition-colors">
+                    <textarea ref={textareaRef} rows={1} placeholder={isRecording ? "Listening..." : (activeDocument ? `Ask about ${activeDocument.name}...` : "Enter Message")} className="flex-1 bg-transparent focus:outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] text-lg resize-none overflow-y-auto max-h-40 custom-scrollbar" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} disabled={isLoading} aria-label="Chat input" />
+                    <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Add attachment"><PaperclipIcon /></button>
+                    <button type="button" onClick={handleMicClick} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label={isRecording ? 'Stop recording' : 'Start recording'}><MicrophoneIcon className={isRecording ? 'text-purple-500 animate-pulse' : ''} /></button>
+                    <button type="submit" disabled={!(inputValue.trim() || attachment) || isLoading || modelStatus !== 'online'} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50" aria-label="Send message"><SendIcon /></button>
+                </form>
+            </div>
+        </>
+    )
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 text-[var(--text-primary)] font-sans overflow-hidden">
-      <div className="w-full max-w-[1400px] h-[90vh] max-h-[900px] flex gap-4">
-        <Sidebar onSettingsClick={() => setIsSettingsOpen(true)} settingsButtonRef={settingsButtonRef} isAdmin={currentUser.role === 'admin'} onAdminClick={() => setIsAdminPanelOpen(true)} onMarketplaceClick={openMarketplace} onGalleryClick={openGallery} onSarStudioClick={openSarStudio} onConnectorsClick={openConnectorsPanel} />
-        <main className="flex-1 bg-[var(--bg-tertiary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] p-8 flex flex-col relative overflow-hidden custom-scrollbar">
+    <div className="min-h-screen flex items-center justify-center p-2 sm:p-4 text-[var(--text-primary)] font-sans overflow-hidden">
+      <div className="w-full max-w-[1400px] h-[calc(100vh-1rem)] sm:h-[90vh] max-h-[900px] flex gap-4">
+        <div className="hidden lg:flex flex-shrink-0">
+          <Sidebar onSettingsClick={() => setIsSettingsOpen(true)} settingsButtonRef={settingsButtonRef} isAdmin={currentUser.role === 'admin'} onAdminClick={() => setIsAdminPanelOpen(true)} onPanelClick={setActiveView} />
+        </div>
+         {isSidebarOpen && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" onClick={() => setIsSidebarOpen(false)}>
+                <div className="absolute top-0 left-0 h-full bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] shadow-lg animate-slide-in-left" onClick={e => e.stopPropagation()}>
+                    <Sidebar
+                        isAdmin={currentUser.role === 'admin'}
+                        settingsButtonRef={settingsButtonRef}
+                        onSettingsClick={() => handleMobileNav(() => setIsSettingsOpen(true))}
+                        onAdminClick={() => handleMobileNav(() => setIsAdminPanelOpen(true))}
+                        onPanelClick={handlePanelClick}
+                    />
+                </div>
+            </div>
+        )}
+        <main className="flex-1 bg-[var(--bg-tertiary)] backdrop-blur-3xl border border-[var(--border-primary)] rounded-[32px] p-4 sm:p-8 flex flex-col relative overflow-hidden custom-scrollbar">
           <input type="file" ref={restoreFileInputRef} onChange={handleRestoreAppData} accept=".json" className="hidden" />
-          {isSettingsOpen && <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSettingsChange={setSettings} onClearChat={handleClearChat} triggerRef={settingsButtonRef} activeModel={activeModel} onBackup={handleBackupAppData} onRestore={() => restoreFileInputRef.current?.click()} onReset={handleResetApplication} playSound={playSound} />}
-          {currentUser.role === 'admin' && isAdminPanelOpen && <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} users={users} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} apiKeys={apiKeys} onAddApiKey={handleAddApiKey} onUpdateApiKey={handleUpdateApiKey} onDeleteApiKey={handleDeleteApiKey} logs={logs} onClearLogs={handleClearLogs} />}
+          {isSettingsOpen && <SettingsPanel isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} settings={settings} onSettingsChange={setSettings} onClearChat={handleClearChat} triggerRef={settingsButtonRef} activeModel={activeModel} onBackup={handleBackupAppData} onRestore={() => restoreFileInputRef.current?.click()} onReset={handleResetApplication} playSound={playSound} onExportChatHistory={handleExportChatHistory} />}
+          {currentUser.role === 'admin' && isAdminPanelOpen && <AdminPanel isOpen={isAdminPanelOpen} onClose={() => setIsAdminPanelOpen(false)} users={users} onAddUser={handleAddUser} onUpdateUser={handleUpdateUser} onDeleteUser={handleDeleteUser} apiKeys={apiKeys} onAddApiKey={handleAddApiKey} onUpdateApiKey={handleUpdateApiKey} onDeleteApiKey={handleDeleteApiKey} onDeleteApiKeys={handleDeleteApiKeys} logs={logs} onClearLogs={handleClearLogs} onRunHealthCheck={handleRunHealthCheck} onRunUsageAnalysis={handleRunUsageAnalysis} />}
+          {isProfilePanelOpen && <ProfilePanel user={currentUser} onClose={() => setIsProfilePanelOpen(false)} onUpdateUser={handleUpdateUser} />}
           {isModelModalOpen && <CustomModelModal model={editingModel} onSave={handleSaveModel} onClose={() => setIsModelModalOpen(false)} />}
           {projectToPreview && <SarProjectCanvas project={projectToPreview} onClose={() => setProjectToPreview(null)} />}
           {editingImage && <ImageEditor isOpen={!!editingImage} onClose={() => setEditingImage(null)} imageToEdit={editingImage} onSave={handleSaveEditedImage} />}
           
-          {isGalleryOpen ? <Gallery onClose={() => setIsGalleryOpen(false)} galleryRoot={galleryRoot} onCreateFolder={handleGalleryCreateFolder} onRenameItem={handleGalleryRenameItem} onDeleteItems={handleGalleryDeleteItems} onMoveItems={handleGalleryMoveItems} onChatWithDocument={handleChatWithDocument} onPreviewSarProject={handlePreviewSarProject} onEditImageRequest={handleEditImageRequest} />
-          : isSarStudioOpen ? <SarStudio onClose={() => setIsSarStudioOpen(false)} onImagesGenerated={handleImagesGenerated} onVideoGenerated={handleVideoGenerated} onProjectGenerated={handleProjectGenerated} />
-          : isMarketplaceOpen ? <ModelMarketplace onSelectModel={handleSelectModel} onClose={() => setIsMarketplaceOpen(false)} models={[...defaultModels, ...customModels]} onAddModel={openAddModelModal} onEditModel={openEditModelModal} onDeleteModel={handleDeleteModel} onImportModels={handleImportModels} />
-          : isConnectorsPanelOpen ? <ConnectorsPanel isOpen={isConnectorsPanelOpen} onClose={() => setIsConnectorsPanelOpen(false)} connectors={mockConnectors} connectedConnectorIds={connectedConnectorIds} onToggleConnector={handleToggleConnector} isConnecting={isDriveConnecting} />
-          : (
-            <>
-              <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-purple-500/20 to-transparent pointer-events-none -z-10"></div>
-              <header className="flex items-center justify-between text-[var(--text-muted)]">
-                  <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <h1 className="font-semibold text-[var(--text-primary)]">{activeModel.name}</h1>
-                        <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 text-xs rounded-full">{activeModel.provider}</span>
-                      </div>
-                      <StatusIndicator status={modelStatus} tooltipText={modelStatusMessage} />
-                  </div>
-                  <div className="flex items-center gap-4">
-                        {messages.length > 0 && (
-                          <div className="flex items-center">
-                              {isSearchActive ? (
-                                  <div className="flex items-center gap-2 bg-[var(--bg-interactive)] rounded-full border border-[var(--border-primary)] p-1 animate-fade-in-down">
-                                      <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="bg-transparent focus:outline-none text-sm px-2 w-36" autoFocus />
-                                      {searchTerm && <span className="text-xs text-[var(--text-muted)] whitespace-nowrap">{searchResults.length > 0 ? `${(currentResultIndex ?? -1) + 1} / ${searchResults.length}` : '0 / 0'}</span>}
-                                      <button onClick={handlePrevResult} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] disabled:opacity-50" aria-label="Previous search result"><ChevronUpIcon className="w-4 h-4" /></button>
-                                      <button onClick={handleNextResult} disabled={searchResults.length < 2} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] disabled:opacity-50" aria-label="Next search result"><ChevronDownIcon className="w-4 h-4" /></button>
-                                      <button onClick={() => { setIsSearchActive(false); setSearchTerm(''); }} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)]" aria-label="Close search"><CloseIcon className="w-4 h-4" /></button>
-                                  </div>
-                              ) : ( <button onClick={() => setIsSearchActive(true)} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Search chat history"><SearchIcon /></button> )}
-                          </div>
-                      )}
-                      <div className="text-sm">Welcome, <span className="font-semibold text-[var(--text-primary)]">{currentUser.name}</span></div>
-                      <button onClick={handleLogout} className="flex items-center gap-2 hover:text-[var(--text-primary)]" aria-label="Logout"><LogoutIcon /></button>
-                      <div className="relative">
-                          <button ref={notificationsButtonRef} onClick={() => setIsNotificationsOpen(p => !p)} className="flex items-center gap-2 hover:text-[var(--text-primary)]" aria-label="Toggle notifications">
-                              <BellIcon />
-                              {notifications.length > 0 && <div className="absolute -top-1 -right-1 w-4 h-4 bg-purple-600 rounded-full text-white text-xs flex items-center justify-center border-2 border-[var(--bg-secondary)]">{notifications.length}</div>}
-                          </button>
-                          <NotificationPanel isOpen={isNotificationsOpen} notifications={notifications} onClose={() => setIsNotificationsOpen(false)} onClearAll={() => { setNotifications([]); setIsNotificationsOpen(false); }} triggerRef={notificationsButtonRef} />
-                      </div>
-                  </div>
-              </header>
-              
-              {messages.length === 0 ? <WelcomeScreen /> : (
-                  <div ref={chatContainerRef} role="log" aria-live="polite" aria-busy={isLoading} className="flex-1 overflow-y-auto custom-scrollbar -mr-4 pr-4 mt-4 space-y-6 py-4">
-                      {messages.map((msg) => (
-                          <ChatBubble key={msg.id} message={msg} enableTTS={settings.enableTTS} isSpeaking={currentlySpeakingMessageId === msg.id} onToggleSpeech={handleToggleSpeech} onContextMenu={handleContextMenu} searchTerm={isSearchActive ? searchTerm : null} isHighlighted={currentResultIndex !== null && searchResults[currentResultIndex] === msg.id} />
-                      ))}
-                      {isLoading && messages.length > 0 && messages[messages.length - 1].role === MessageRole.USER && (
-                      <div role="status" className="flex items-start gap-3 justify-start">
-                          <div className="w-8 h-8 flex items-center justify-center bg-[var(--bg-interactive)] rounded-full flex-shrink-0 mt-1"><SarLogoIcon /></div>
-                          <div className="rounded-2xl px-4 py-3 max-w-md bg-[var(--bg-interactive)] text-[var(--text-muted)] rounded-tl-none">
-                              <div className="flex items-center gap-2 h-5 bounce-dot"><span className="sr-only">Typing...</span><span className="w-2 h-2 bg-current rounded-full"></span><span className="w-2 h-2 bg-current rounded-full"></span><span className="w-2 h-2 bg-current rounded-full"></span></div>
-                          </div>
-                      </div>
-                      )}
-                  </div>
-              )}
+          {mainContentMap[activeView]}
 
-              <div className="mt-auto pt-4">
-                  {messages.length === 0 && !activeDocument && (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {suggestions.map((s, i) => <SuggestionChip key={i} text={s.text} icon={s.icon} onClick={(text) => {
-                          if (text === 'Search Web') { setInputValue('/web '); textareaRef.current?.focus(); }
-                          else if (text === 'Generate image') { openSarStudio(); }
-                          else { handleSendMessage(text); }
-                        }} />)}
-                  </div>
-                  )}
-                  {activeDocument && (
-                      <div className="mb-2 max-w-md p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[var(--bg-tertiary)] rounded-md flex items-center justify-center flex-shrink-0"><FileTextIcon className="w-6 h-6 text-[var(--text-muted)]" /></div>
-                          <div className="text-sm overflow-hidden flex-1"><p className="text-[var(--text-muted)] text-xs">Analyzing Document</p><p className="text-[var(--text-primary)] font-medium truncate">{activeDocument.name}</p></div>
-                          <button onClick={() => setActiveDocument(null)} aria-label="Stop analyzing document" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1"><CloseIcon className="w-4 h-4" /></button>
-                      </div>
-                  )}
-                  {attachment && (
-                      <div className="mb-2 max-w-sm p-2 bg-[var(--bg-interactive)] border border-[var(--border-primary)] rounded-xl relative flex items-center gap-3">
-                          {attachment.file.type.startsWith('image/') ? ( <img src={attachment.url} alt="Attachment preview" className="w-16 h-16 object-cover rounded-md flex-shrink-0" /> ) : ( <div className="w-16 h-16 bg-[var(--bg-tertiary)] rounded-md flex items-center justify-center flex-shrink-0"><FileTextIcon className="w-8 h-8 text-[var(--text-muted)]" /></div> )}
-                          <div className="text-sm overflow-hidden flex-1"><p className="text-[var(--text-primary)] font-medium truncate">{attachment.file.name}</p><p className="text-[var(--text-muted)]">{formatFileSize(attachment.file.size)}</p></div>
-                          <button onClick={() => setAttachment(null)} aria-label="Remove attachment" className="absolute -top-2 -right-2 bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] rounded-full p-1 border border-[var(--border-primary)]"><CloseIcon className="w-4 h-4" /></button>
-                      </div>
-                  )}
-                  {messages.length > 0 && (
-                      <div className="flex justify-end text-xs text-[var(--text-muted)] px-3 pb-2">
-                          <span>Session Tokens: {sessionTokenCount.prompt + sessionTokenCount.response}</span>
-                      </div>
-                  )}
-                  <form onSubmit={(e) => {e.preventDefault(); handleSendMessage(inputValue);}} className="bg-black/20 border border-[var(--border-primary)] rounded-2xl flex items-end p-2 pl-6 focus-within:border-purple-500 transition-colors">
-                      <textarea ref={textareaRef} rows={1} placeholder={isRecording ? "Listening..." : (activeDocument ? `Ask about ${activeDocument.name}...` : "Enter Message")} className="flex-1 bg-transparent focus:outline-none text-[var(--text-primary)] placeholder-[var(--text-muted)] text-lg resize-none overflow-y-auto max-h-40 custom-scrollbar" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} disabled={isLoading} aria-label="Chat input" />
-                      <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
-                      <button type="button" onClick={() => fileInputRef.current?.click()} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Add attachment"><PaperclipIcon /></button>
-                      <button type="button" onClick={handleMicClick} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label={isRecording ? 'Stop recording' : 'Start recording'}><MicrophoneIcon className={isRecording ? 'text-purple-500 animate-pulse' : ''} /></button>
-                      <button type="submit" disabled={!(inputValue.trim() || attachment) || isLoading || modelStatus !== 'online'} className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-50" aria-label="Send message"><SendIcon /></button>
-                  </form>
-              </div>
-            </>
-          )}
         </main>
       </div>
       {contextMenu.isOpen && ( <ContextMenu isOpen={contextMenu.isOpen} position={contextMenu.position} options={contextMenuOptions} onClose={handleCloseContextMenu} /> )}

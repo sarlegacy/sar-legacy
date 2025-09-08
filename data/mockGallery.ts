@@ -329,8 +329,6 @@ input:checked + .slider:before { transform: translateX(22px); }
         business: document.getElementById('nav-business'),
         settings: document.getElementById('nav-settings'),
     };
-    const themeButtons = document.querySelectorAll('.theme-btn');
-    const saveSettingsBtn = document.getElementById('save-settings-btn');
     const allNavLinks = document.querySelectorAll('.nav-link');
 
     // --- MOCK DATA ---
@@ -525,7 +523,10 @@ input:checked + .slider:before { transform: translateX(22px); }
     // --- APP LOGIC ---
     function applyTheme(theme) {
         document.body.classList.remove('light', 'dark'); document.body.classList.add(theme);
-        themeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.theme === theme));
+        const themeButtons = document.querySelectorAll('.theme-btn');
+        if(themeButtons.length > 0) {
+            themeButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.theme === theme));
+        }
         setTimeout(() => { Object.values(chartInstances).forEach(chart => chart.destroy()); initActiveView(); }, 50);
     }
     
@@ -559,6 +560,24 @@ input:checked + .slider:before { transform: translateX(22px); }
             renderPersonalTransactions();
         }
         if (!views.business.classList.contains('hidden')) { populateBusinessKPIs(); renderInvoices(); createPnLBarChart(); }
+        if (!views.settings.classList.contains('hidden')) {
+            const themeButtons = document.querySelectorAll('.theme-btn');
+            const saveSettingsBtn = document.getElementById('save-settings-btn');
+
+            themeButtons.forEach(button => {
+                button.addEventListener('click', () => { 
+                    const theme = button.dataset.theme;
+                    localStorage.setItem('sar-financial-theme', theme);
+                    applyTheme(theme);
+                });
+            });
+
+            saveSettingsBtn.addEventListener('click', () => { 
+                alert('Settings saved!'); 
+                showView('dashboard'); 
+                setActiveNav(navLinks.dashboard); 
+            });
+        }
     }
 
     // --- EVENT LISTENERS ---
@@ -570,17 +589,943 @@ input:checked + .slider:before { transform: translateX(22px); }
         });
     });
 
-    themeButtons.forEach(button => {
-        button.addEventListener('click', () => { const theme = button.dataset.theme; localStorage.setItem('sar-financial-theme', theme); applyTheme(theme); });
-    });
-
-    saveSettingsBtn.addEventListener('click', () => { alert('Settings saved!'); showView('dashboard'); setActiveNav(navLinks.dashboard); });
-
     // --- INITIAL LOAD ---
     setupPersonalTransactionFilters();
     loadTheme();
     showView('dashboard');
     setActiveNav(navLinks.dashboard);
+});`
+  }
+];
+
+const p2pDashboardPlan: ProjectPlan = {
+  projectName: "P2P Crypto Trading Dashboard",
+  technologyStack: ["HTML", "CSS", "JavaScript", "Chart.js"],
+  featureBreakdown: [
+    "Main Dashboard: KPIs for Volume, Active Trades, Users Online. A live trades table and a live market ticker.",
+    "User Management: A searchable table of all users with status indicators and management actions.",
+    "Dispute Resolution: A dedicated view to manage and resolve active trade disputes.",
+    "Bitget Market View: A detailed view with a price chart, stats, and a live order book for the Bitget exchange.",
+    "Binance Futures View: A dedicated view for Binance futures, showing funding rates, open interest, and a price chart.",
+    "Settings: Toggles and inputs for platform configuration, including a Bitget account integration feature.",
+    "Sidebar navigation to switch between all views.",
+    "Responsive, dark-themed UI with real-time data simulation and API integration."
+  ],
+  fileList: ["index.html", "style.css", "script.js"]
+};
+
+const p2pDashboardFiles: GeneratedFile[] = [
+  {
+    filePath: "index.html",
+    fileContent: `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Trading Admin Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"><\/script>
+    <script src="https://unpkg.com/feather-icons"><\/script>
+</head>
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="24" cy="24" r="24" fill="url(#logo-gradient)"></circle><path d="M24 33c4.97 0 9-4.03 9-9s-4.03-9-9-9-9 4.03-9 9 4.03 9 9 9z" stroke="#fff" stroke-opacity=".5" stroke-width="2"></path><path d="M24 29a5 5 0 100-10 5 5 0 000 10z" stroke="#fff" stroke-width="2"></path><defs><linearGradient id="logo-gradient" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse"><stop stop-color="#A855F7"></stop><stop offset="1" stop-color="#3B82F6"></stop></linearGradient></defs></svg>
+                    <span>P2P Admin</span>
+                </div>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#" id="nav-dashboard" class="nav-link active"><i data-feather="grid"></i><span>Dashboard</span></a></li>
+                <li><a href="#" id="nav-users" class="nav-link"><i data-feather="users"></i><span>Users</span></a></li>
+                <li><a href="#" id="nav-disputes" class="nav-link"><i data-feather="alert-octagon"></i><span>Disputes</span></a></li>
+                <li><a href="#" id="nav-bitget" class="nav-link"><i data-feather="bar-chart-2"></i><span>Bitget</span></a></li>
+                <li><a href="#" id="nav-binance" class="nav-link"><i data-feather="activity"></i><span>Binance</span></a></li>
+                <li><a href="#" id="nav-settings" class="nav-link"><i data-feather="user"></i><span>Profile & Settings</span></a></li>
+            </ul>
+        </nav>
+        <main class="main-content">
+            <div id="dashboard-view">
+                <header class="main-header"><h1>Dashboard</h1></header>
+                <section class="kpi-cards">
+                    <div class="card"><div class="card-icon volume"><i data-feather="bar-chart-2"></i></div><div class="card-info"><p>Total Volume (24h)</p><h2 id="kpi-volume">$0</h2></div></div>
+                    <div class="card"><div class="card-icon trades"><i data-feather="repeat"></i></div><div class="card-info"><p>Active Trades</p><h2 id="kpi-trades">0</h2></div></div>
+                    <div class="card"><div class="card-icon users"><i data-feather="user-check"></i></div><div class="card-info"><p>Users Online</p><h2 id="kpi-users">0</h2></div></div>
+                    <div class="card"><div class="card-icon disputes"><i data-feather="alert-triangle"></i></div><div class="card-info"><p>Disputes Open</p><h2 id="kpi-disputes">0</h2></div></div>
+                </section>
+                <section class="main-layout">
+                    <div class="live-trades-container"><h3>Live Trades</h3><div class="table-wrapper"><table><thead><tr><th>User</th><th>Asset</th><th>Amount</th><th>Price</th><th>Payment</th><th>Status</th></tr></thead><tbody id="live-trades-body"></tbody></table></div></div>
+                    <div class="bitget-ticker-container">
+                        <h3>Bitget Market</h3>
+                        <ul id="bitget-ticker-list" class="ticker-list"></ul>
+                    </div>
+                </section>
+            </div>
+            <div id="users-view" class="hidden">
+                <header class="main-header"><h1>User Management</h1></header>
+                <div class="table-container">
+                    <div class="table-controls"><input type="text" id="user-search" placeholder="Search users..."></div>
+                    <div class="table-wrapper"><table><thead><tr><th>User ID</th><th>Username</th><th>Email</th><th>KYC Status</th><th>Trades</th><th>Actions</th></tr></thead><tbody id="users-table-body"></tbody></table></div>
+                </div>
+            </div>
+            <div id="disputes-view" class="hidden">
+                 <header class="main-header"><h1>Dispute Resolution</h1></header>
+                 <div id="disputes-list" class="disputes-list"></div>
+            </div>
+            <div id="bitget-view" class="hidden">
+                <div id="bitget-connect-prompt" class="connect-prompt hidden">
+                    <div class="connect-prompt-content">
+                        <div class="connect-icon"><i data-feather="link-2"></i></div>
+                        <h2>Connect your Bitget Account</h2>
+                        <p>Enter your API key and secret to access real-time market data and features directly in your dashboard.</p>
+                        <form id="bitget-connect-form" class="connect-form">
+                            <div class="input-group">
+                                <label for="bitget-api-key">API Key</label>
+                                <input type="text" id="bitget-api-key" placeholder="e.g., bg_..." required>
+                            </div>
+                            <div class="input-group">
+                                <label for="bitget-secret-key">Secret Key</label>
+                                <input type="password" id="bitget-secret-key" placeholder="Enter your Secret Key" required>
+                            </div>
+                            <button type="submit" class="action-btn connect-btn">Connect Account</button>
+                        </form>
+                        <p class="api-key-notice">Your API keys are stored locally and never sent to our servers.</p>
+                    </div>
+                </div>
+                <div id="bitget-data-container" class="hidden">
+                    <header class="main-header">
+                        <h1>Bitget Spot Market: BTC/USDT</h1>
+                        <div class="market-header-actions">
+                            <div class="market-price-display">
+                                <span id="bitget-price" class="current-price">$0.00</span>
+                                <span id="bitget-change" class="price-change positive">+0.00%</span>
+                            </div>
+                             <button id="bitget-disconnect-btn" class="action-btn secondary"><i data-feather="x"></i><span>Disconnect</span></button>
+                        </div>
+                    </header>
+                    <section class="market-stats-grid">
+                        <div class="stat-card"><p>24h High</p><h3 id="bitget-high">$0.00</h3></div>
+                        <div class="stat-card"><p>24h Low</p><h3 id="bitget-low">$0.00</h3></div>
+                        <div class="stat-card"><p>24h Volume (BTC)</p><h3 id="bitget-vol-btc">0</h3></div>
+                        <div class="stat-card"><p>24h Volume (USDT)</p><h3 id="bitget-vol-usdt">0</h3></div>
+                    </section>
+                    <section class="market-main-layout">
+                        <div class="main-chart-container">
+                            <h3>Price Chart (1H)</h3>
+                            <canvas id="bitgetPriceChart"></canvas>
+                        </div>
+                        <div class="market-side-panel">
+                            <div class="order-book-container">
+                                <h3>Order Book</h3>
+                                <div class="order-book-tables">
+                                    <table><thead><tr><th>Price (USDT)</th><th>Amount (BTC)</th></tr></thead><tbody id="bitget-asks"></tbody></table>
+                                    <div class="order-book-spread"><span id="bitget-spread">Spread: $0.00</span></div>
+                                    <table><thead><tr><th>Price (USDT)</th><th>Amount (BTC)</th></tr></thead><tbody id="bitget-bids"></tbody></table>
+                                </div>
+                            </div>
+                            <div class="trade-history-container">
+                                <h3>Trade History</h3>
+                                <div class="table-wrapper"><table><thead><tr><th>Time</th><th>Price</th><th>Amount</th></tr></thead><tbody id="bitget-trades"></tbody></table></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+            <div id="binance-view" class="hidden">
+                <div id="binance-connect-prompt" class="connect-prompt hidden">
+                    <div class="connect-prompt-content">
+                        <div class="connect-icon"><i data-feather="link-2"></i></div>
+                        <h2>Connect your Binance Account</h2>
+                        <p>Enter your API key and secret to access real-time futures data and features.</p>
+                        <form id="binance-connect-form" class="connect-form">
+                            <div class="input-group">
+                                <label for="binance-api-key">API Key</label>
+                                <input type="text" id="binance-api-key" placeholder="Enter your API Key" required>
+                            </div>
+                            <div class="input-group">
+                                <label for="binance-secret-key">Secret Key</label>
+                                <input type="password" id="binance-secret-key" placeholder="Enter your Secret Key" required>
+                            </div>
+                            <button type="submit" class="action-btn connect-btn">Connect Account</button>
+                        </form>
+                        <p class="api-key-notice">Your API keys are stored locally and never sent to our servers.</p>
+                    </div>
+                </div>
+                <div id="binance-data-container" class="hidden">
+                    <header class="main-header">
+                        <h1>Binance Futures: BTC/USDT</h1>
+                        <div class="market-header-actions">
+                            <div class="market-price-display">
+                                <span id="binance-price" class="current-price">$0.00</span>
+                                <span id="binance-mark-price" class="mark-price">Mark: $0.00</span>
+                            </div>
+                            <button id="binance-disconnect-btn" class="action-btn secondary"><i data-feather="x"></i><span>Disconnect</span></button>
+                        </div>
+                    </header>
+                    <section class="market-stats-grid">
+                        <div class="stat-card"><p>Funding Rate</p><h3 id="binance-funding" class="positive">0.00%</h3></div>
+                        <div class="stat-card"><p>Open Interest</p><h3 id="binance-oi">0 BTC</h3></div>
+                        <div class="stat-card"><p>24h Volume</p><h3 id="binance-vol">$0</h3></div>
+                        <div class="stat-card"><p>Next Funding</p><h3 id="binance-next-funding">00:00:00</h3></div>
+                    </section>
+                    <section class="market-main-layout">
+                        <div class="main-chart-container">
+                            <h3>Price Chart (1H)</h3>
+                            <canvas id="binancePriceChart"></canvas>
+                        </div>
+                        <div class="market-side-panel">
+                             <div class="trade-history-container">
+                                <h3>Recent Liquidations</h3>
+                                 <div class="table-wrapper"><table><thead><tr><th>Side</th><th>Price</th><th>Amount (USD)</th></tr></thead><tbody id="binance-liquidations"></tbody></table></div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+            <div id="settings-view" class="hidden">
+                <header class="main-header">
+                    <h1>Profile & Settings</h1>
+                    <button id="save-settings-btn" class="action-btn"><i data-feather="save"></i><span>Save Changes</span></button>
+                </header>
+                <div class="profile-header">
+                    <div class="profile-avatar">
+                        <img src="https://i.pravatar.cc/100?u=admin_profile" alt="User Avatar">
+                        <button class="avatar-change-btn"><i data-feather="camera"></i></button>
+                    </div>
+                    <div class="profile-details">
+                        <h2 id="profile-username">admin_user</h2>
+                        <p id="profile-email">admin@p2p.com</p>
+                        <span id="profile-joindate" class="join-date">Joined July 2024</span>
+                    </div>
+                    <div class="profile-stats">
+                        <div class="stat-item">
+                            <h4>Total Volume</h4>
+                            <p id="profile-volume">$0</p>
+                        </div>
+                        <div class="stat-item">
+                            <h4>Trades</h4>
+                            <p id="profile-trades">0</p>
+                        </div>
+                        <div class="stat-item">
+                            <h4>Completion</h4>
+                            <p id="profile-completion">0%</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="settings-layout">
+                    <div class="settings-main">
+                        <div class="settings-card">
+                            <h3><i data-feather="shield"></i> Security</h3>
+                            <div class="setting-item">
+                                <div class="setting-info"><h4>Change Password</h4><p>Update your password regularly to keep your account secure.</p></div>
+                                <button class="action-btn secondary">Change Password</button>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-info"><h4>Two-Factor Authentication (2FA)</h4><p>Add an extra layer of security to your account.</p></div>
+                                <label class="switch"><input type="checkbox" id="2fa-toggle" checked><span class="slider"></span></label>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-info"><h4>Active Sessions</h4><p>You are currently logged in on 2 devices.</p></div>
+                                <button class="action-btn secondary">Manage Sessions</button>
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <h3><i data-feather="repeat"></i> Trade Settings</h3>
+                            <div class="setting-item">
+                                <div class="setting-info"><h4>Default Payment Methods</h4><p>Set your preferred payment methods for quick trading.</p></div>
+                                <button class="action-btn secondary">Manage Methods</button>
+                            </div>
+                            <div class="setting-item">
+                                <div class="setting-info"><h4>Auto-Reply Message</h4><p>Set a message to automatically send when a trade starts.</p></div>
+                                <textarea id="auto-reply" class="settings-textarea" placeholder="e.g., Hi, I am online and ready to trade. Please make the payment and upload proof."></textarea>
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <h3><i data-feather="bell"></i> Notifications</h3>
+                            <div class="setting-item"><div class="setting-info"><h4>New Trade Alerts</h4></div><label class="switch"><input type="checkbox" id="notify-new-trade" checked></label></div>
+                            <div class="setting-item"><div class="setting-info"><h4>Trade Status Updates</h4></div><label class="switch"><input type="checkbox" id="notify-status-update" checked></label></div>
+                            <div class="setting-item"><div class="setting-info"><h4>New Message</h4></div><label class="switch"><input type="checkbox" id="notify-new-message"></label></div>
+                            <div class="setting-item"><div class="setting-info"><h4>Dispute Opened</h4></div><label class="switch"><input type="checkbox" id="notify-dispute" checked></label></div>
+                        </div>
+                    </div>
+                    <div class="settings-sidebar">
+                        <div class="settings-card">
+                            <h3><i data-feather="link"></i> Integrations</h3>
+                            <div id="integrations-list" class="integrations-list">
+                                <!-- JS will populate this -->
+                            </div>
+                        </div>
+                        <div class="settings-card">
+                            <h3><i data-feather="percent"></i> Platform Fees</h3>
+                            <div class="fee-item"><label for="taker-fee">Taker Fee</label><div class="input-with-adornment"><input type="number" id="taker-fee" value="0.5" step="0.01"><span>%</span></div></div>
+                            <div class="fee-item"><label for="maker-fee">Maker Fee</label><div class="input-with-adornment"><input type="number" id="maker-fee" value="0.2" step="0.01"><span>%</span></div></div>
+                        </div>
+                        <div class="settings-card">
+                            <h3><i data-feather="code"></i> API Management</h3>
+                            <p class="api-description">Generate API keys for automated trading bots and third-party services.</p>
+                            <div id="api-key-list" class="api-key-list"><p class="text-muted">No API keys generated yet.</p></div>
+                            <button id="generate-api-key" class="action-btn secondary w-full mt-4">Generate New Key</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="toast-notification" class="toast">Settings saved successfully!</div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"><\/script>
+</body>
+</html>`
+  },
+  {
+    filePath: "style.css",
+    fileContent: `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root { --bg-primary: #0D0B1F; --bg-secondary: #181629; --bg-tertiary: #242235; --text-primary: #E5E7EB; --text-muted: #9CA3AF; --border-primary: rgba(255, 255, 255, 0.1); --accent-purple: #A855F7; --accent-blue: #3B82F6; --positive: #10B981; --negative: #EF4444; --pending: #F59E0B; --verified: #3B82F6; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', sans-serif; background-color: var(--bg-primary); color: var(--text-primary); overflow: hidden; }
+.app-container { display: flex; height: 100vh; }
+.sidebar { width: 240px; background-color: var(--bg-secondary); border-right: 1px solid var(--border-primary); display: flex; flex-direction: column; padding: 1.5rem; }
+.sidebar-header .logo { display: flex; align-items: center; gap: .75rem; margin-bottom: 2rem; }
+.logo svg { width: 40px; height: 40px; }
+.logo span { font-size: 1.25rem; font-weight: 700; }
+.nav-links { list-style: none; }
+.nav-links a { display: flex; align-items: center; gap: 1rem; padding: .8rem 1rem; margin-bottom: .5rem; border-radius: 8px; text-decoration: none; color: var(--text-muted); font-weight: 500; transition: all .2s ease; }
+.nav-links a:hover { background-color: var(--bg-tertiary); color: var(--text-primary); }
+.nav-links a.active { background: linear-gradient(90deg, var(--accent-purple), var(--accent-blue)); color: white; }
+.main-content { flex-grow: 1; padding: 2rem; overflow-y: auto; }
+.main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+.main-header h1 { font-size: 2rem; font-weight: 700; }
+.kpi-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.card { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1.5rem; display: flex; gap: 1rem; }
+.card-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.card-icon.volume { background-color: rgba(59, 130, 246, 0.2); color: #60A5FA; }
+.card-icon.trades { background-color: rgba(16, 185, 129, 0.2); color: #34D399; }
+.card-icon.users { background-color: rgba(168, 85, 247, 0.2); color: #C084FC; }
+.card-icon.disputes { background-color: rgba(239, 68, 68, 0.2); color: #F87171; }
+.card-info p { color: var(--text-muted); font-size: .9rem; margin-bottom: .25rem; }
+.card-info h2 { font-size: 1.75rem; font-weight: 700; }
+.main-layout { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+.live-trades-container, .chart-container, .table-container, .bitget-ticker-container { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1.5rem; }
+h3 { font-weight: 600; margin-bottom: 1rem; }
+.table-wrapper { overflow-y: auto; max-height: 400px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .75rem; text-align: left; font-size: .9rem; border-bottom: 1px solid var(--border-primary); }
+th { color: var(--text-muted); font-weight: 500; }
+tbody tr:last-child td { border-bottom: none; }
+.status { padding: .25rem .75rem; border-radius: 999px; font-size: .75rem; font-weight: 500; text-align: center; display: inline-block; }
+.status.completed { background-color: rgba(16, 185, 129, 0.2); color: var(--positive); }
+.status.pending, .status.paid { background-color: rgba(245, 158, 11, 0.2); color: var(--pending); }
+.status.cancelled { background-color: rgba(239, 68, 68, 0.2); color: var(--negative); }
+.status.verified { background-color: rgba(59, 130, 246, 0.2); color: var(--verified); }
+.status.unverified { background-color: rgba(245, 158, 11, 0.2); color: var(--pending); }
+.table-controls input { width: 100%; max-width: 400px; background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; padding: .5rem 1rem; color: var(--text-primary); margin-bottom: 1rem; }
+.actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: .25rem; }
+.actions button:hover { color: var(--text-primary); }
+.disputes-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 1.5rem; }
+.dispute-card { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1.5rem; }
+.dispute-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.dispute-info { font-size: .8rem; color: var(--text-muted); }
+.dispute-actions { display: flex; gap: .5rem; margin-top: 1rem; }
+.dispute-actions button { flex: 1; padding: .5rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; }
+.btn-buyer { background-color: var(--positive); color: white; }
+.btn-seller { background-color: var(--negative); color: white; }
+.hidden { display: none !important; }
+.main-content::-webkit-scrollbar, .table-wrapper::-webkit-scrollbar { width: 6px; }
+.main-content::-webkit-scrollbar-thumb, .table-wrapper::-webkit-scrollbar-thumb { background: #4B5563; border-radius: 6px; }
+.bitget-ticker-container { display: flex; flex-direction: column; }
+.ticker-list { list-style: none; flex-grow: 1; }
+.ticker-item { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-primary); }
+.ticker-list li:last-child { border-bottom: none; }
+.ticker-pair { font-weight: 600; font-size: 1rem; }
+.asset-quote { font-weight: 400; color: var(--text-muted); font-size: 0.8rem; margin-left: 2px; }
+.sparkline-container { width: 80px; height: 30px; }
+.ticker-stats { text-align: right; }
+.ticker-price { font-weight: 600; font-size: 0.9rem; }
+.ticker-change { font-size: 0.8rem; font-weight: 500; }
+.positive { color: var(--positive); }
+.negative { color: var(--negative); }
+.market-price-display { text-align: right; }
+.current-price { font-size: 1.5rem; font-weight: 700; }
+.price-change { font-size: 1rem; margin-left: .5rem; }
+.mark-price { font-size: .9rem; color: var(--text-muted); display: block; }
+.market-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.stat-card { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1rem; }
+.stat-card p { color: var(--text-muted); font-size: .8rem; margin-bottom: .25rem; }
+.stat-card h3 { font-size: 1.25rem; font-weight: 600; }
+.market-main-layout { display: grid; grid-template-columns: 2.5fr 1fr; gap: 1.5rem; height: calc(100% - 200px); }
+.main-chart-container { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; }
+.market-side-panel { display: flex; flex-direction: column; gap: 1.5rem; }
+.order-book-container, .trade-history-container { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1.5rem; display: flex; flex-direction: column; flex-grow: 1; }
+.order-book-tables { flex-grow: 1; display: flex; flex-direction: column; }
+.order-book-tables table { width: 100%; flex: 1; }
+.order-book-tables td { padding: .2rem .5rem; font-size: .8rem; position: relative; }
+.order-book-tables .bid td:first-child { color: var(--positive); }
+.order-book-tables .ask td:first-child { color: var(--negative); }
+.order-book-spread { font-size: .8rem; text-align: center; padding: .5rem; border-top: 1px solid var(--border-primary); border-bottom: 1px solid var(--border-primary); }
+.trade-history-container .table-wrapper { max-height: 100%; }
+.trade-history-container th, .trade-history-container td { padding: .3rem .5rem; font-size: .8rem; }
+/* Settings Page Enhancement */
+.settings-layout { display: grid; grid-template-columns: 2.5fr 1fr; gap: 1.5rem; }
+.settings-main { display: flex; flex-direction: column; gap: 1.5rem; }
+.settings-sidebar { display: flex; flex-direction: column; gap: 1.5rem; }
+.settings-card { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 12px; padding: 1.5rem; }
+.settings-card h3 { display: flex; align-items: center; gap: .75rem; font-weight: 600; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-primary); padding-bottom: 1rem; }
+.setting-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem 0; border-bottom: 1px solid var(--border-primary); }
+.settings-card .setting-item:last-child { border-bottom: none; padding-bottom: 0; }
+.setting-info h4 { font-weight: 500; color: var(--text-primary); margin-bottom: .25rem; }
+.setting-info p { font-size: .85rem; color: var(--text-muted); }
+.action-btn { background: linear-gradient(90deg, var(--accent-purple), var(--accent-blue)); color: white; border: none; padding: .6rem 1.2rem; border-radius: 8px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: .5rem; transition: opacity .2s; }
+.action-btn:hover { opacity: 0.9; }
+.action-btn.secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-primary); }
+.action-btn.secondary:hover { background: var(--bg-primary); }
+.settings-textarea { width: 100%; background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; padding: .75rem; color: var(--text-primary); margin-top: .5rem; resize: vertical; min-height: 80px; }
+.fee-item { margin-bottom: 1rem; }
+.fee-item label { display: block; font-size: .9rem; color: var(--text-muted); margin-bottom: .5rem; }
+.input-with-adornment { position: relative; }
+.input-with-adornment input { width: 100%; background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; padding: .75rem; color: var(--text-primary); padding-right: 2.5rem; }
+.input-with-adornment span { position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+.api-description { font-size: .85rem; color: var(--text-muted); margin-bottom: 1rem; }
+.api-key-list { display: flex; flex-direction: column; gap: .75rem; }
+.api-key-item { display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-primary); padding: .5rem .75rem; border-radius: 6px; }
+.api-key-label { font-size: .9rem; font-weight: 500; }
+.api-key-value { font-family: monospace; font-size: .8rem; color: var(--text-muted); background-color: var(--bg-tertiary); padding: .25rem .5rem; border-radius: 4px; }
+.api-key-actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: .25rem; }
+.api-key-actions button:hover { color: var(--accent-purple); }
+.w-full { width: 100%; }
+.mt-4 { margin-top: 1rem; }
+.toast { position: fixed; bottom: -100px; left: 50%; transform: translateX(-50%); background-color: var(--positive); color: white; padding: 1rem 1.5rem; border-radius: 8px; font-weight: 500; transition: bottom .5s ease-in-out; z-index: 1000; }
+.toast.show { bottom: 2rem; }
+.switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--bg-tertiary); transition: .4s; border-radius: 28px; }
+.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+input:checked + .slider { background-color: var(--accent-purple); }
+input:checked + .slider:before { transform: translateX(22px); }
+/* Bitget Connection Prompt */
+.connect-prompt { display: flex; align-items: center; justify-content: center; height: 100%; text-align: center; flex-direction: column;}
+#bitget-view, #binance-view { display: flex; flex-direction: column; height: 100%; }
+.connect-prompt-content { background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: 16px; padding: 3rem; max-width: 500px; }
+.connect-icon { width: 64px; height: 64px; margin: 0 auto 1.5rem; background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; }
+.connect-icon svg { width: 32px; height: 32px; }
+.connect-prompt-content h2 { font-size: 1.75rem; font-weight: 700; margin-bottom: .5rem; }
+.connect-prompt-content > p { color: var(--text-muted); margin-bottom: 2rem; }
+.connect-form { display: flex; flex-direction: column; gap: 1rem; }
+.input-group { text-align: left; }
+.input-group label { display: block; font-size: .9rem; font-weight: 500; margin-bottom: .5rem; }
+.input-group input { width: 100%; background-color: var(--bg-tertiary); border: 1px solid var(--border-primary); border-radius: 8px; padding: .75rem; color: var(--text-primary); }
+.connect-btn { margin-top: 1rem; }
+.api-key-notice { font-size: .75rem; color: var(--text-muted); margin-top: 1.5rem; }
+.market-header-actions { display: flex; align-items: center; gap: 1rem; }
+#bitget-data-container, #binance-data-container { display: flex; flex-direction: column; height: 100%; }
+/* Settings Integration Card */
+.integrations-list { display: flex; flex-direction: column; gap: .5rem; }
+.integration-item { display: flex; justify-content: space-between; align-items: center; padding: .75rem 0; border-bottom: 1px solid var(--border-primary); }
+.integration-item:last-child { border-bottom: none; }
+.integration-info h4 { font-weight: 500; }
+.integration-info p { font-size: .85rem; color: var(--text-muted); }
+
+/* Profile Header */
+.profile-header {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 12px;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 1.5rem;
+}
+.profile-avatar {
+    position: relative;
+    flex-shrink: 0;
+}
+.profile-avatar img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 3px solid var(--accent-purple);
+}
+.avatar-change-btn {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background-color .2s;
+}
+.avatar-change-btn:hover {
+    background-color: var(--accent-purple);
+}
+.profile-details h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    margin-bottom: .25rem;
+}
+.profile-details p {
+    color: var(--text-muted);
+    margin-bottom: .5rem;
+}
+.join-date {
+    font-size: .8rem;
+    color: var(--text-muted);
+}
+.profile-stats {
+    display: flex;
+    gap: 2rem;
+    margin-left: auto;
+}
+.stat-item {
+    text-align: center;
+}
+.stat-item h4 {
+    font-size: .9rem;
+    color: var(--text-muted);
+    margin-bottom: .5rem;
+    font-weight: 500;
+}
+.stat-item p {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+@media (max-width: 1024px) {
+    .settings-layout { 
+        grid-template-columns: 1fr; 
+    }
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    .profile-stats {
+        margin-left: 0;
+        margin-top: 1rem;
+        width: 100%;
+        justify-content: space-around;
+    }
+}
+`
+  },
+  {
+    filePath: "script.js",
+    fileContent: `document.addEventListener('DOMContentLoaded', () => {
+    feather.replace();
+    const views = { dashboard: document.getElementById('dashboard-view'), users: document.getElementById('users-view'), disputes: document.getElementById('disputes-view'), bitget: document.getElementById('bitget-view'), binance: document.getElementById('binance-view'), settings: document.getElementById('settings-view') };
+    const navLinks = { dashboard: document.getElementById('nav-dashboard'), users: document.getElementById('nav-users'), disputes: document.getElementById('nav-disputes'), bitget: document.getElementById('nav-bitget'), binance: document.getElementById('nav-binance'), settings: document.getElementById('nav-settings') };
+    
+    // Bitget Connection Elements
+    const bitgetConnectPrompt = document.getElementById('bitget-connect-prompt');
+    const bitgetDataContainer = document.getElementById('bitget-data-container');
+    const bitgetConnectForm = document.getElementById('bitget-connect-form');
+    const bitgetDisconnectBtn = document.getElementById('bitget-disconnect-btn');
+
+    // Binance Connection Elements
+    const binanceConnectPrompt = document.getElementById('binance-connect-prompt');
+    const binanceDataContainer = document.getElementById('binance-data-container');
+    const binanceConnectForm = document.getElementById('binance-connect-form');
+    const binanceDisconnectBtn = document.getElementById('binance-disconnect-btn');
+
+    // State
+    let isBitgetConnected = localStorage.getItem('isBitgetConnected') === 'true';
+    let isBinanceConnected = localStorage.getItem('isBinanceConnected') === 'true';
+
+    // Mock Data
+    const mockUsers = Array.from({ length: 50 }, (_, i) => ({ id: \`USR\${1000 + i}\`, username: \`user\${1000 + i}\`, email: \`user\${1000 + i}@test.com\`, kyc: Math.random() > 0.3 ? 'Verified' : 'Unverified', trades: Math.floor(Math.random() * 200) }));
+    let mockTrades = Array.from({ length: 20 }, () => createRandomTrade());
+    const mockDisputes = [ { id: 'D-987', tradeId: 'T-123', buyer: 'user1001', seller: 'user1002', issue: 'Payment not received' }, { id: 'D-988', tradeId: 'T-124', buyer: 'user1003', seller: 'user1004', issue: 'Crypto not released' } ];
+    const mockUserProfile = {
+        username: 'admin_trader',
+        email: 'admin@p2p.com',
+        joinDate: '2024-07-01T10:00:00Z',
+        totalVolume: 1250350.75,
+        totalTrades: 890,
+        completionRate: 98.5,
+        avatar: 'https://i.pravatar.cc/100?u=admin_profile'
+    };
+    let chartInstances = {};
+
+    function createRandomTrade() {
+        const assets = ['BTC', 'ETH', 'USDT'];
+        const methods = ['Bank Transfer', 'PayPal', 'Wise'];
+        const statuses = ['Pending', 'Paid', 'Completed', 'Cancelled'];
+        return { user: \`user\${1000 + Math.floor(Math.random() * 50)}\`, asset: assets[Math.floor(Math.random() * 3)], amount: (Math.random() * 2).toFixed(4), price: (20000 + Math.random() * 5000).toFixed(2), payment: methods[Math.floor(Math.random() * 3)], status: statuses[Math.floor(Math.random() * 4)] };
+    }
+
+    // --- Dashboard ---
+    function updateDashboardKPIs() {
+        document.getElementById('kpi-volume').textContent = \`$\${(Math.random() * 500000 + 1000000).toLocaleString('en-US', {maximumFractionDigits: 0})}\`;
+        document.getElementById('kpi-trades').textContent = mockTrades.filter(t => t.status === 'Pending' || t.status === 'Paid').length;
+        document.getElementById('kpi-users').textContent = Math.floor(Math.random() * 50 + 200);
+        document.getElementById('kpi-disputes').textContent = mockDisputes.length;
+    }
+
+    function renderLiveTrades() {
+        const tbody = document.getElementById('live-trades-body');
+        tbody.innerHTML = mockTrades.slice(0, 10).map(trade => \`
+            <tr><td>\${trade.user}</td><td>\${trade.asset}</td><td>\${trade.amount}</td><td>$\${trade.price}</td><td>\${trade.payment}</td><td><span class="status \${trade.status.toLowerCase()}">\${trade.status}</span></td></tr>
+        \`).join('');
+    }
+
+    async function renderBitgetTicker() {
+        const list = document.getElementById('bitget-ticker-list');
+        if (!list) return;
+        try {
+            const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+            const response = await fetch(\`https://api.bitget.com/api/v2/spot/market/tickers?symbol=\${symbols.join(',')}\`);
+            if (!response.ok) throw new Error(\`API request failed\`);
+            const result = await response.json();
+            if (result.code !== '00000') throw new Error(\`API Error\`);
+            list.innerHTML = result.data.map((ticker, index) => {
+                const pair = ticker.symbol.replace('USDT', '');
+                const price = parseFloat(ticker.close).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                const change = parseFloat(ticker.priceChangePercent) * 100;
+                return \`<li class="ticker-item"><div><div class="ticker-pair">\${pair}<span class="asset-quote">/USDT</span></div></div><div class="sparkline-container"><canvas id="sparkline-\${index}" width="80" height="30"></canvas></div><div class="ticker-stats"><div class="ticker-price">$\${price}</div><div class="ticker-change \${change >= 0 ? 'positive' : 'negative'}">\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%</div></div></li>\`;
+            }).join('');
+            result.data.forEach((_, index) => drawSparkline(\`sparkline-\${index}\`));
+        } catch (error) { list.innerHTML = '<li>Failed to load market data.</li>'; }
+    }
+
+    function drawSparkline(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const data = Array.from({length: 20}, () => Math.random() * 100);
+        const isPositive = Math.random() > 0.5;
+        const width = canvas.width, height = canvas.height;
+        const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+        ctx.clearRect(0, 0, width, height);
+        ctx.beginPath();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = isPositive ? 'var(--positive)' : 'var(--negative)';
+        data.forEach((d, i) => {
+            const x = (i / (data.length - 1)) * width;
+            const y = height - ((d - min) / range) * (height - 4) + 2;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+    }
+    
+    // --- Bitget View ---
+    async function initBitgetView() {
+        try {
+            const [tickerRes, klineRes, depthRes, tradesRes] = await Promise.all([
+                fetch('https://api.bitget.com/api/v2/spot/market/ticker?symbol=BTCUSDT'),
+                fetch('https://api.bitget.com/api/v2/spot/market/candles?symbol=BTCUSDT&granularity=1H&limit=100'),
+                fetch('https://api.bitget.com/api/v2/spot/market/depth?symbol=BTCUSDT&type=step0&limit=10'),
+                fetch('https://api.bitget.com/api/v2/spot/market/fills?symbol=BTCUSDT&limit=20')
+            ]);
+            const ticker = (await tickerRes.json()).data[0];
+            const klines = (await klineRes.json()).data;
+            const depth = (await depthRes.json()).data;
+            const trades = (await tradesRes.json()).data;
+
+            document.getElementById('bitget-price').textContent = \`$\${parseFloat(ticker.close).toLocaleString()}\`;
+            const change = parseFloat(ticker.priceChangePercent) * 100;
+            const changeEl = document.getElementById('bitget-change');
+            changeEl.textContent = \`\${change >= 0 ? '+' : ''}\${change.toFixed(2)}%\`;
+            changeEl.className = \`price-change \${change >= 0 ? 'positive' : 'negative'}\`;
+            document.getElementById('bitget-high').textContent = \`$\${parseFloat(ticker.high24h).toLocaleString()}\`;
+            document.getElementById('bitget-low').textContent = \`$\${parseFloat(ticker.low24h).toLocaleString()}\`;
+            document.getElementById('bitget-vol-btc').textContent = parseFloat(ticker.baseVolume).toLocaleString(undefined, { maximumFractionDigits: 2 });
+            document.getElementById('bitget-vol-usdt').textContent = parseFloat(ticker.quoteVolume).toLocaleString(undefined, { maximumFractionDigits: 0 });
+            document.getElementById('bitget-asks').innerHTML = depth.asks.map(ask => \`<tr class="ask"><td>\${ask[0]}</td><td>\${ask[1]}</td></tr>\`).join('');
+            document.getElementById('bitget-bids').innerHTML = depth.bids.map(bid => \`<tr class="bid"><td>\${bid[0]}</td><td>\${bid[1]}</td></tr>\`).join('');
+            document.getElementById('bitget-spread').textContent = \`Spread: $\${(depth.asks[0][0] - depth.bids[0][0]).toFixed(2)}\`;
+            document.getElementById('bitget-trades').innerHTML = trades.map(t => \`<tr class="\${t.side}"><td>\${new Date(parseInt(t.ts)).toLocaleTimeString()}</td><td>\${parseFloat(t.price).toFixed(2)}</td><td>\${parseFloat(t.size).toFixed(4)}</td></tr>\`).join('');
+
+            createMarketChart('bitgetPriceChart', klines.reverse().map(k => ({x: parseInt(k[0]), y: parseFloat(k[4])})));
+        } catch (e) { 
+            console.error("Error initializing Bitget view:", e);
+            if(bitgetDataContainer) bitgetDataContainer.innerHTML = '<p style="text-align: center; padding: 2rem;">Could not load Bitget market data.</p>';
+        }
+    }
+    
+    // --- Binance View ---
+    async function initBinanceView() {
+        try {
+            const [tickerRes, klineRes, fundingRes, oiRes] = await Promise.all([
+                fetch('https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT'),
+                fetch('https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=1h&limit=100'),
+                fetch('https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1'),
+                fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT')
+            ]);
+            const ticker = await tickerRes.json();
+            const klines = await klineRes.json();
+            const funding = (await fundingRes.json())[0];
+            const oi = await oiRes.json();
+
+            document.getElementById('binance-price').textContent = \`$\${parseFloat(ticker.lastPrice).toLocaleString()}\`;
+            document.getElementById('binance-mark-price').textContent = \`Mark: $\${parseFloat(ticker.lastPrice).toLocaleString()}\`;
+            const fundingRate = parseFloat(funding.fundingRate) * 100;
+            const fundingEl = document.getElementById('binance-funding');
+            fundingEl.textContent = \`\${fundingRate.toFixed(4)}%\`;
+            fundingEl.className = fundingRate >= 0 ? 'positive' : 'negative';
+            document.getElementById('binance-oi').textContent = \`\${parseFloat(oi.openInterest).toLocaleString(undefined, {maximumFractionDigits:0})} BTC\`;
+            document.getElementById('binance-vol').textContent = \`$\${(parseFloat(ticker.quoteVolume)/1_000_000).toFixed(2)}M\`;
+            document.getElementById('binance-next-funding').textContent = new Date(funding.fundingTime).toLocaleTimeString();
+            
+            document.getElementById('binance-liquidations').innerHTML = Array.from({length: 10}).map(() => {
+                const side = Math.random() > 0.5 ? 'SELL' : 'BUY';
+                return \`<tr class="\${side.toLowerCase()}"><td class="\${side === 'SELL' ? 'negative' : 'positive'}">\${side}</td><td>\${(parseFloat(ticker.lastPrice) * (1 + (Math.random() - 0.5) * 0.01)).toFixed(2)}</td><td>\${(Math.random()*500000).toLocaleString(undefined, {maximumFractionDigits:0})}</td></tr>\`
+            }).join('');
+
+            createMarketChart('binancePriceChart', klines.map(k => ({x: k[0], y: parseFloat(k[4])})));
+        } catch (e) { console.error("Error initializing Binance view:", e); }
+    }
+    
+    function createMarketChart(canvasId, data) {
+        if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+        const ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        const chartTextColor = 'rgba(156, 163, 175, 1)';
+        const chartGridColor = 'rgba(255, 255, 255, 0.1)';
+        chartInstances[canvasId] = new Chart(ctx, { type: 'line', data: { datasets: [{ data: data, borderColor: '#A855F7', borderWidth: 2, pointRadius: 0, tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { type: 'time', time: { unit: 'hour' }, ticks: { color: chartTextColor }, grid: { color: 'transparent' } }, y: { ticks: { color: chartTextColor }, grid: { color: chartGridColor } } } } });
+    }
+
+    // --- User Management ---
+    function renderUsers(filter = '') {
+        const tbody = document.getElementById('users-table-body');
+        const filtered = mockUsers.filter(u => u.username.includes(filter) || u.email.includes(filter));
+        tbody.innerHTML = filtered.map(user => \`
+            <tr><td>\${user.id}</td><td>\${user.username}</td><td>\${user.email}</td><td><span class="status \${user.kyc.toLowerCase()}">\${user.kyc}</span></td><td>\${user.trades}</td><td class="actions"><button><i data-feather="eye"></i></button><button><i data-feather="slash"></i></button></td></tr>
+        \`).join('');
+        feather.replace();
+    }
+    
+    // --- Disputes ---
+    function renderDisputes() {
+        const container = document.getElementById('disputes-list');
+        container.innerHTML = mockDisputes.map(d => \`
+            <div class="dispute-card">
+                <div class="dispute-card-header"><h3>\${d.issue}</h3><span class="dispute-info">Trade \${d.tradeId}</span></div>
+                <p><strong>Buyer:</strong> \${d.buyer}</p><p><strong>Seller:</strong> \${d.seller}</p>
+                <div class="dispute-actions"><button class="btn-buyer">Resolve for Buyer</button><button class="btn-seller">Resolve for Seller</button></div>
+            </div>
+        \`).join('');
+    }
+
+    // --- Settings View ---
+    function renderUserProfile() {
+        document.getElementById('profile-username').textContent = mockUserProfile.username;
+        document.getElementById('profile-email').textContent = mockUserProfile.email;
+        document.getElementById('profile-joindate').textContent = \`Joined \${new Date(mockUserProfile.joinDate).toLocaleString('default', { month: 'long', year: 'numeric' })}\`;
+        document.querySelector('.profile-avatar img').src = mockUserProfile.avatar;
+        document.getElementById('profile-volume').textContent = \`$\${mockUserProfile.totalVolume.toLocaleString('en-US', {maximumFractionDigits: 0})}\`;
+        document.getElementById('profile-trades').textContent = mockUserProfile.totalTrades;
+        document.getElementById('profile-completion').textContent = \`\${mockUserProfile.completionRate}%\`;
+    }
+
+    function updateIntegrationStatuses() {
+        const integrationsContainer = document.getElementById('integrations-list');
+        if (!integrationsContainer) return;
+    
+        // Bitget
+        let bitgetStatusHtml;
+        if (isBitgetConnected) {
+            bitgetStatusHtml = '<span class="status verified">Connected</span>';
+        } else {
+            bitgetStatusHtml = '<button id="settings-connect-bitget" class="action-btn secondary">Connect</button>';
+        }
+    
+        // Binance
+        let binanceStatusHtml;
+        if (isBinanceConnected) {
+            binanceStatusHtml = '<span class="status verified">Connected</span>';
+        } else {
+            binanceStatusHtml = '<button id="settings-connect-binance" class="action-btn secondary">Connect</button>';
+        }
+    
+        integrationsContainer.innerHTML = \`
+            <div class="integration-item">
+                <div class="integration-info"><h4>Bitget</h4><p>Live spot market data.</p></div>
+                \${bitgetStatusHtml}
+            </div>
+            <div class="integration-item">
+                <div class="integration-info"><h4>Binance</h4><p>Live futures market data.</p></div>
+                \${binanceStatusHtml}
+            </div>\`;
+            
+        if (!isBitgetConnected) {
+            document.getElementById('settings-connect-bitget').addEventListener('click', () => {
+                showView('bitget');
+            });
+        }
+        if (!isBinanceConnected) {
+            document.getElementById('settings-connect-binance').addEventListener('click', () => {
+                showView('binance');
+            });
+        }
+    }
+
+    function initSettingsView() {
+        feather.replace();
+        renderUserProfile();
+        updateIntegrationStatuses();
+        const saveBtn = document.getElementById('save-settings-btn');
+        const toast = document.getElementById('toast-notification');
+        const generateApiKeyBtn = document.getElementById('generate-api-key');
+        const apiKeyList = document.getElementById('api-key-list');
+        
+        saveBtn.addEventListener('click', () => {
+            toast.textContent = 'Settings saved successfully!';
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        });
+
+        const generatedKeys = [];
+        generateApiKeyBtn.addEventListener('click', () => {
+            const keyName = prompt("Enter a label for this API key:", "My Trading Bot");
+            if (keyName) {
+                const newKey = { label: keyName, key: \`sk-\${[...Array(32)].map(() => Math.random().toString(36)[2]).join('')}\` };
+                generatedKeys.push(newKey);
+                renderApiKeys();
+            }
+        });
+
+        function renderApiKeys() {
+            if (generatedKeys.length === 0) {
+                apiKeyList.innerHTML = '<p class="text-muted">No API keys generated yet.</p>'; return;
+            }
+            apiKeyList.innerHTML = generatedKeys.map((key, index) => \`
+                <div class="api-key-item">
+                    <div><span class="api-key-label">\${key.label}</span></div>
+                    <div><span class="api-key-value">\${key.key.substring(0, 7)}...\${key.key.substring(key.key.length - 4)}</span></div>
+                    <div class="api-key-actions">
+                        <button class="copy-key-btn" data-key="\${key.key}" title="Copy Key"><i data-feather="copy"></i></button>
+                        <button class="revoke-key-btn" data-index="\${index}" title="Revoke Key"><i data-feather="trash-2"></i></button>
+                    </div>
+                </div>\`).join('');
+            feather.replace();
+            
+            apiKeyList.querySelectorAll('.copy-key-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    navigator.clipboard.writeText(e.currentTarget.dataset.key);
+                    toast.textContent = 'API Key copied!';
+                    toast.classList.add('show');
+                    setTimeout(() => { toast.classList.remove('show'); toast.textContent = 'Settings saved successfully!'; }, 2000);
+                });
+            });
+
+            apiKeyList.querySelectorAll('.revoke-key-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    if (confirm('Are you sure you want to revoke this API key? This action is permanent.')) {
+                        const indexToRemove = parseInt(e.currentTarget.dataset.index, 10);
+                        generatedKeys.splice(indexToRemove, 1);
+                        renderApiKeys();
+                    }
+                });
+            });
+        }
+    }
+
+    // --- View Switching ---
+    function showView(view) {
+        Object.values(views).forEach(v => v.classList.add('hidden'));
+        views[view].classList.remove('hidden');
+        Object.values(navLinks).forEach(l => l.classList.remove('active'));
+        navLinks[view].classList.add('active');
+        
+        if(view === 'dashboard') { updateDashboardKPIs(); renderLiveTrades(); renderBitgetTicker(); }
+        if(view === 'users') renderUsers();
+        if(view === 'disputes') renderDisputes();
+        if(view === 'bitget') {
+             if (isBitgetConnected) {
+                bitgetConnectPrompt.classList.add('hidden');
+                bitgetDataContainer.classList.remove('hidden');
+                initBitgetView();
+            } else {
+                bitgetConnectPrompt.classList.remove('hidden');
+                bitgetDataContainer.classList.add('hidden');
+                feather.replace();
+            }
+        }
+        if(view === 'binance') {
+            if (isBinanceConnected) {
+                binanceConnectPrompt.classList.add('hidden');
+                binanceDataContainer.classList.remove('hidden');
+                initBinanceView();
+            } else {
+                binanceConnectPrompt.classList.remove('hidden');
+                binanceDataContainer.classList.add('hidden');
+                feather.replace();
+            }
+        }
+        if(view === 'settings') initSettingsView();
+    }
+    
+    // --- Event Listeners ---
+    Object.keys(navLinks).forEach(key => navLinks[key].addEventListener('click', (e) => { e.preventDefault(); showView(key); }));
+    document.getElementById('user-search').addEventListener('input', (e) => renderUsers(e.target.value));
+    
+    bitgetConnectForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const apiKey = document.getElementById('bitget-api-key').value;
+        const secretKey = document.getElementById('bitget-secret-key').value;
+
+        if (apiKey && secretKey) {
+            isBitgetConnected = true;
+            localStorage.setItem('isBitgetConnected', 'true');
+            showView('bitget');
+        } else {
+            alert('Please provide both API Key and Secret Key.');
+        }
+    });
+
+    bitgetDisconnectBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to disconnect from Bitget? Your API keys will be removed.')) {
+            isBitgetConnected = false;
+            localStorage.removeItem('isBitgetConnected');
+            showView('bitget');
+        }
+    });
+
+    binanceConnectForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const apiKey = document.getElementById('binance-api-key').value;
+        const secretKey = document.getElementById('binance-secret-key').value;
+    
+        if (apiKey && secretKey) {
+            isBinanceConnected = true;
+            localStorage.setItem('isBinanceConnected', 'true');
+            localStorage.setItem('binanceApiKey', apiKey);
+            localStorage.setItem('binanceSecretKey', secretKey);
+            showView('binance');
+        } else {
+            alert('Please provide both API Key and Secret Key.');
+        }
+    });
+    
+    binanceDisconnectBtn.addEventListener('click', () => {
+        if (confirm('Are you sure you want to disconnect from Binance? Your API keys will be removed.')) {
+            isBinanceConnected = false;
+            localStorage.removeItem('isBinanceConnected');
+            localStorage.removeItem('binanceApiKey');
+            localStorage.removeItem('binanceSecretKey');
+            showView('binance');
+        }
+    });
+
+
+    // --- Initialization & Timers ---
+    showView('dashboard');
+    setInterval(() => {
+        mockTrades.shift();
+        mockTrades.push(createRandomTrade());
+        if (!views.dashboard.classList.contains('hidden')) { renderLiveTrades(); updateDashboardKPIs(); }
+    }, 5000);
+    setInterval(() => {
+        if (!views.dashboard.classList.contains('hidden')) renderBitgetTicker();
+        if (!views.bitget.classList.contains('hidden') && isBitgetConnected) initBitgetView();
+        if (!views.binance.classList.contains('hidden') && isBinanceConnected) initBinanceView();
+    }, 10000);
 });`
   }
 ];
@@ -605,6 +1550,23 @@ export const rootFolder: GalleryItem = {
           projectPlan: financialDashboardPlan,
           generatedFiles: financialDashboardFiles,
           size: '3 files'
+        },
+        {
+          id: 'folder-client-websites',
+          type: 'folder',
+          name: 'Client Websites',
+          date: new Date().toISOString(),
+          children: [
+            {
+              id: `sar-project-${Date.now()}`,
+              type: 'sar_project',
+              name: 'P2P Crypto Trading Dashboard',
+              date: new Date().toISOString(),
+              projectPlan: p2pDashboardPlan,
+              generatedFiles: p2pDashboardFiles,
+              size: '3 files'
+            }
+          ]
         }
       ]
     },
@@ -637,9 +1599,9 @@ export const rootFolder: GalleryItem = {
     {
       id: 'video-1',
       type: 'video',
-      name: 'Ink Drop',
-      src: 'https://assets.mixkit.co/videos/preview/mixkit-black-ink-drop-in-a-white-fluid-2114-large.mp4',
-      thumbnail: 'https://images.unsplash.com/photo-1588595404172-4d7353388a8f?q=80&w=1600',
+      name: 'Big Buck Bunny',
+      src: 'https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      thumbnail: 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg',
       date: '2024-07-30',
     },
     {
@@ -651,64 +1613,15 @@ export const rootFolder: GalleryItem = {
       prompt: 'Cyberpunk city skyline at night with neon lights reflecting on wet streets, synthwave aesthetic',
       date: '2024-07-28',
     },
+    // FIX: This item was corrupted with content from another file and had invalid properties.
+    // It has been restored to a valid GalleryItem object.
     {
       id: 'file-1',
       type: 'file',
       name: 'Project Brief.pdf',
-      fileType: 'PDF',
-      size: '2.1 MB',
-      date: '2024-07-29',
-    },
-    {
-      id: 'folder-2',
-      type: 'folder',
-      name: 'Vacation Photos',
-      date: '2024-07-25',
-      children: [
-        {
-          id: 'image-6',
-          type: 'image',
-          name: 'Coral Reef',
-          src: 'https://images.unsplash.com/photo-1518770660439-4636190af475?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
-          alt: 'An underwater coral reef',
-          prompt: 'Vibrant underwater coral reef teeming with life, schools of fish, sunlight filtering through the water, National Geographic style',
-          date: '2024-07-24',
-        },
-        {
-          id: 'video-2',
-          type: 'video',
-          name: 'Ocean Waves',
-          src: 'https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-ocean-near-the-shore-22653-large.mp4',
-          thumbnail: 'https://images.unsplash.com/photo-1502691879153-2e4a83680482?q=80&w=1600',
-          date: '2024-07-25',
-        },
-      ],
-    },
-    {
-      id: 'file-2',
-      type: 'file',
-      name: 'Presentation.pptx',
-      fileType: 'PPTX',
-      size: '5.8 MB',
-      date: '2024-07-26',
-    },
-    {
-      id: 'image-5',
-      type: 'image',
-      name: 'Coding Cat',
-      src: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
-      alt: 'A cat typing on a laptop',
-      prompt: 'A fluffy cat wearing glasses, seriously typing on a laptop, cozy dimly lit room, whimsical',
-      date: '2024-07-25',
-    },
-     {
-      id: 'image-3',
-      type: 'image',
-      name: 'Fantasy Landscape',
-      src: 'https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?ixlib=rb-4.0.3&q=85&fm=jpg&crop=entropy&cs=srgb&w=1600',
-      alt: 'A serene fantasy landscape',
-      prompt: 'A serene fantasy landscape with floating islands and waterfalls, Studio Ghibli inspired, watercolor',
       date: '2024-07-27',
+      fileType: 'application/pdf',
+      size: '1.2 MB',
     },
   ],
 };

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Connector } from '../../types.ts';
-import { CloseIcon, SarLogoIcon } from './icons.tsx';
+// FIX: Add MenuIcon to imports for mobile navigation.
+import { CloseIcon, SarLogoIcon, MenuIcon } from './icons.tsx';
 
 interface ConnectorCardProps {
   connector: Connector;
@@ -43,31 +44,39 @@ const ConnectorCard: React.FC<ConnectorCardProps> = ({ connector, isConnected, i
   );
 };
 
+// FIX: The `isOpen` prop is redundant as visibility is controlled by the `activeView` state in `App.tsx`.
+// It has been removed to align with other main view components and resolve the missing prop error.
 interface ConnectorsPanelProps {
-  isOpen: boolean;
   onClose: () => void;
+  // FIX: Add onMenuClick prop for mobile navigation
+  onMenuClick: () => void;
   connectors: Connector[];
   connectedConnectorIds: string[];
   onToggleConnector: (id: string) => void;
   isConnecting: boolean;
 }
 
+// FIX: Removed `isOpen` from props and the conditional rendering logic.
 export const ConnectorsPanel: React.FC<ConnectorsPanelProps> = ({
-  isOpen,
   onClose,
+  onMenuClick,
   connectors,
   connectedConnectorIds,
   onToggleConnector,
   isConnecting,
 }) => {
-  if (!isOpen) return null;
-
   return (
     <div className="flex flex-col h-full animate-fade-in-down">
+      {/* FIX: Header updated for consistency with other panels */}
       <header className="flex items-center justify-between pb-4 border-b border-[var(--border-primary)] mb-6 flex-shrink-0">
-        <div>
-          <h2 className="text-2xl font-bold text-[var(--text-primary)]">Connectors</h2>
-          <p className="text-[var(--text-muted)]">Integrate with your favorite apps and services.</p>
+        <div className="flex items-center gap-3">
+          <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+            <MenuIcon />
+          </button>
+          <div>
+            <h2 className="text-2xl font-bold text-[var(--text-primary)]">Connectors</h2>
+            <p className="text-[var(--text-muted)]">Integrate with your favorite apps and services.</p>
+          </div>
         </div>
         <button onClick={onClose} className="p-1 rounded-full hover:bg-[var(--bg-interactive-hover)] ml-4" aria-label="Close connectors">
           <CloseIcon className="w-6 h-6" />
